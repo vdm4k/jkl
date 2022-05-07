@@ -1,38 +1,43 @@
 #pragma once
-#include <sched.h>
-#include <sys/time.h>
-#include <time.h>
-
-#include <cerrno>
 #include <chrono>
 #include <cstdint>
 
 namespace jkl::system::time {
 
-static inline uint64_t get_time() noexcept {
-  union {
-    uint64_t _tsc;
-    struct {
-      uint32_t _lo;
-      uint32_t _hi;
-    };
-  } rdtsc;
+/** @defgroup time
+ *  @{
+ */
 
-  asm volatile("rdtsc" : "=a"(rdtsc._lo), "=d"(rdtsc._hi));
-  return rdtsc._tsc;
-}
+/**
+ * init timestamp
+ *
+ * this function must be called before we start to work with get_time function
+ * Need call only once
+ */
+void init_timestamp();
 
-static inline void sleep(std::chrono::microseconds const& time) {
-  if (time.count()) {
-    std::chrono::seconds const sec{
-        std::chrono::duration_cast<std::chrono::seconds>(time)};
-    timespec requested{sec.count(), (time - sec).count() * 1000};
-    timespec remaining{0, 0};
-    while (nanosleep(&requested, &remaining) == -1 && EINTR == errno)
-      requested = remaining;
-  } else {
-    sched_yield();
-  }
-}
+/**
+ * get current timestamp
+ *
+ * Need call init_timestamp before first call get_timestamp
+ */
+std::chrono::microseconds get_timestamp() noexcept;
+
+/**
+ * read time stamp counter
+ *
+ */
+uint64_t read_tsc() noexcept;
+
+/**
+ * call sleep for calling thread
+ *
+ * same as std sleep_for except call yield if time.count() == 0
+ *
+ * @param time sleep time
+ */
+void sleep(std::chrono::microseconds const& time);
+
+/** @} */  // end of time
 
 }  // namespace jkl::system::time
