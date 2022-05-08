@@ -59,13 +59,32 @@ class thread {
   /**
    * move constructor
    *
+   * don't want to do because it will look like pimpl.
+   * if we want move we can use unique_ptr as wraper
    */
-  thread(thread&& l) noexcept
-      : _is_active(l._is_active.load(std::memory_order_acquire)),
-        _thread(std::move(l._thread)),
-        _name(std::move(l._name)),
-        _thread_config(std::move(l._thread_config)) {
-    l._is_active.store(false, std::memory_order_release);
+  thread(thread&& l) noexcept = delete;
+
+  /**
+   * assign operator
+   *
+   * can't do two similar threads
+   */
+  thread(thread const& l) noexcept = delete;
+
+  /**
+   * construct and run thread (similar as std::thread but with running flag)
+   *
+   * This is good case whan we need loop functionality and/or monitoring
+   * @see thread_config
+   *
+   * @tparam Callable must be callable function or object
+   * @tparam Args must arguments for calling function
+   * @param fun ref on main function or callable object
+   * @param args arguments for calling main function or callable object
+   */
+  template <typename Callable, typename... Args>
+  thread(Callable&& fun, Args&&... args) {
+    run(std::forward<Callable>(fun), std::forward<Args>(args)...);
   }
 
   /**
@@ -77,7 +96,8 @@ class thread {
    * @tparam InvokeMain must be callable function or object
    * @param invoke_main ref on main function
    */
-  template <typename InvokeMain>
+  template <typename InvokeMain,
+            std::enable_if_t<std::is_invocable_v<InvokeMain>, bool> = true>
   thread(InvokeMain&& invoke_main, thread_config* config = nullptr) {
     run(std::forward<InvokeMain>(invoke_main), config);
   }
@@ -95,7 +115,10 @@ class thread {
    * @param invoke_logic additional function to call ( business logic proceed )
    * @param config thread configuration
    */
-  template <typename InvokeMain, typename InvokeLogic>
+  template <typename InvokeMain, typename InvokeLogic,
+            std::enable_if_t<std::is_invocable_v<InvokeMain> &&
+                                 std::is_invocable_v<InvokeLogic>,
+                             bool> = true>
   thread(InvokeMain&& invoke_main, InvokeLogic&& invoke_logic,
          thread_config* config = nullptr) {
     run_with_logic(std::forward<InvokeMain>(invoke_main),
@@ -118,7 +141,11 @@ class thread {
    * @param invoke_post will call this function after main loop
    * @param config thread configuration
    */
-  template <typename InvokeMain, typename InvokePre, typename InvokePost>
+  template <typename InvokeMain, typename InvokePre, typename InvokePost,
+            std::enable_if_t<std::is_invocable_v<InvokeMain> &&
+                                 std::is_invocable_v<InvokePre> &&
+                                 std::is_invocable_v<InvokePost>,
+                             bool> = true>
   thread(InvokeMain&& invoke_main, InvokePre&& invoke_pre,
          InvokePost&& invoke_post, thread_config* config = nullptr) {
     run_with_pre_post(std::forward<InvokeMain>(invoke_main),
@@ -145,8 +172,13 @@ class thread {
    * @param invoke_post will call this function after main loop
    * @param config thread configuration
    */
-  template <typename InvokeMain, typename InvokeLogic, typename InvokePre,
-            typename InvokePost>
+  template <
+      typename InvokeMain, typename InvokeLogic, typename InvokePre,
+      typename InvokePost,
+      std::enable_if_t<
+          std::is_invocable_v<InvokeMain> && std::is_invocable_v<InvokeLogic> &&
+              std::is_invocable_v<InvokePre> && std::is_invocable_v<InvokePost>,
+          bool> = true>
   thread(InvokeMain&& invoke_main, InvokeLogic&& invoke_logic,
          InvokePre&& invoke_pre, InvokePost&& invoke_post,
          thread_config* config = nullptr) {
@@ -173,27 +205,10 @@ class thread {
   /**
    * move assign operator
    *
-   * assign thread mustn't be in runnting state
+   * don't want to do because it will look like pimpl.
+   * if we want move we can use unique_ptr as wraper
    */
-  thread& operator=(thread&& l) noexcept {
-    if (is_running()) std::terminate();  // similar behaviour like std::thread
-    swap(l);
-    return *this;
-  }
-
-  /**
-   * swap threads
-   *
-   * both threads can be in running state
-   */
-  void swap(thread& l) noexcept {
-    bool current_active = _is_active.load(std::memory_order_acquire);
-    _is_active = l._is_active.load(std::memory_order_acquire);
-    l._is_active.store(current_active, std::memory_order_release);
-    std::swap(_thread, l._thread);
-    std::swap(_name, l._name);
-    std::swap(_thread_config, l._thread_config);
-  }
+  thread& operator=(thread&& l) = delete;
 
   /**
    * is thread in running state or not
@@ -406,7 +421,8 @@ class thread {
    * desription
    */
   template <typename InvokeMain, typename InvokeLogic, typename InvokePre,
-            typename InvokePost>
+            typename InvokePost,
+            std::enable_if_t<std::is_invocable_v<InvokeLogic>, bool> = true>
   result run_with_logic_pre_post(InvokeMain&& invoke_main,
                                  InvokeLogic&& invoke_logic,
                                  InvokePre&& invoke_pre,
@@ -503,11 +519,12 @@ class thread {
   /**
    * get current thread statistic
    *
-   * will have actual values only if set needed field in @see thread_config   *
+   * will have actual values only if set needed fields in @see thread_config
+   * statistic for prev measurement
    *
-   * @return if success status will be true and value will be filled.
+   * @return thread_statistic @see thread_statistic
    */
-  expected<thread_statistic> get_statistic() noexcept;
+  thread_statistic get_statistic() noexcept;
 
  private:
   /**
@@ -551,15 +568,15 @@ class thread {
    *
    * using lock to prevent race condition and inconsisten data
    */
-  void copy_statistic(thread_statistic* to, thread_statistic* from);
+  void copy_statistic(thread_statistic* to, thread_statistic* from) noexcept;
 
   std::atomic_bool _is_active{false};   ///< active flag
-  std::thread _thread;                  ///< internal thread - std thread
   std::string _name;                    ///< name of this thread
   thread_config _thread_config;         ///< current configuration
+  std::thread _thread;                  ///< internal thread - std thread
   thread_statistic _actual_statistic;   ///< actual statistic
   thread_statistic _prev_statistic;     ///< previous statistic
-  std::atomic_bool _write_stat{false};  ///< flag for write statistic
+  std::atomic_bool _write_stat{false};  ///< flag for write stat
 };
 
 /** @} */  // end of thread

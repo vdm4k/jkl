@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.1.0)
-project(system VERSION 1.0.0 DESCRIPTION "system libraries" LANGUAGES CXX)
+project(system VERSION 0.0.2 DESCRIPTION "system libraries" LANGUAGES CXX)
 
 if(UNIX AND NOT APPLE)
     set(COMMON_OS_SPECIFIC_OPTIONS "-g3;-ggdb3")

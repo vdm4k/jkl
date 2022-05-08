@@ -158,7 +158,8 @@ void thread::update_statistic() {
   copy_statistic(&_prev_statistic, &_actual_statistic);
 }
 
-void thread::copy_statistic(thread_statistic* to, thread_statistic* from) {
+void thread::copy_statistic(thread_statistic* to,
+                            thread_statistic* from) noexcept {
   bool expect{false};
   while (!_write_stat.compare_exchange_strong(expect, true))
     ;
@@ -166,13 +167,9 @@ void thread::copy_statistic(thread_statistic* to, thread_statistic* from) {
   _write_stat.store(false, std::memory_order_release);
 }
 
-expected<thread_statistic> thread::get_statistic() noexcept {
-  if (!is_running()) {
-    return result{"thread is not in running"};
-  }
-
-  expected<thread_statistic> stat;
-  copy_statistic(&stat._value, &_prev_statistic);
+thread_statistic thread::get_statistic() noexcept {
+  thread_statistic stat;
+  copy_statistic(&stat, &_prev_statistic);
   return stat;
 }
 

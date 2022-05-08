@@ -55,7 +55,7 @@ uint64_t read_tsc() noexcept {
   return rdtsc._tsc;
 }
 
-void sleep(std::chrono::microseconds const& time) noexcept {
+void sleep(std::chrono::microseconds const& time) {
   if (time.count()) {
     std::this_thread::sleep_for(time);
   } else {
