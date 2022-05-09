@@ -283,9 +283,19 @@ class thread {
         std::thread([invoke_main = std::move(invoke_main), this]() mutable {
           set_running();
           if (has_config()) {
+            uint64_t need_sleep_cycles{0};
+            uint64_t need_sleep_time{0};
+            uint64_t start_tsc = time::read_tsc();
+            uint64_t flush_stat{get_flush_stat(start_tsc)};
+            fill_need_sleep(need_sleep_cycles, need_sleep_time, start_tsc);
+
             while (is_running()) {
-              invoke_main();
-              if (_thread_config._sleep) time::sleep(*_thread_config._sleep);
+              ++_actual_statistic._cycles;
+              uint64_t cur_tsc = time::read_tsc();
+              need_flush_stat(flush_stat, cur_tsc);
+              invoke_fun_stat(invoke_main,
+                              _actual_statistic._max_main_function_time);
+              need_sleep(need_sleep_cycles, need_sleep_time, cur_tsc);
             }
           } else {
             while (is_running()) {
@@ -328,10 +338,25 @@ class thread {
                      invoke_logic = std::move(invoke_logic), this]() mutable {
           set_running();
           if (has_config()) {
+            uint64_t need_sleep_cycles{0};
+            uint64_t need_sleep_time{0};
+            uint64_t need_call_logic_cycles{0};
+            uint64_t need_call_logic_time{0};
+            uint64_t start_tsc = time::read_tsc();
+            uint64_t flush_stat{get_flush_stat(start_tsc)};
+            fill_need_sleep(need_sleep_cycles, need_sleep_time, start_tsc);
+            fill_need_call_logic(need_call_logic_cycles, need_call_logic_time,
+                                 start_tsc);
+
             while (is_running()) {
-              invoke_main();
-              invoke_logic();
-              if (_thread_config._sleep) time::sleep(*_thread_config._sleep);
+              uint64_t cur_tsc = time::read_tsc();
+              ++_actual_statistic._cycles;
+              need_flush_stat(flush_stat, cur_tsc);
+              invoke_fun_stat(invoke_main,
+                              _actual_statistic._max_main_function_time);
+              invoke_logic_stat(invoke_logic, need_call_logic_cycles,
+                                need_call_logic_time, cur_tsc);
+              need_sleep(need_sleep_cycles, need_sleep_time, cur_tsc);
             }
           } else {
             while (is_running()) {
@@ -382,9 +407,19 @@ class thread {
           set_running();
           invoke_pre();
           if (has_config()) {
+            uint64_t need_sleep_cycles{0};
+            uint64_t need_sleep_time{0};
+            uint64_t start_tsc = time::read_tsc();
+            uint64_t flush_stat{get_flush_stat(start_tsc)};
+            fill_need_sleep(need_sleep_cycles, need_sleep_time, start_tsc);
+
             while (is_running()) {
-              invoke_main();
-              if (_thread_config._sleep) time::sleep(*_thread_config._sleep);
+              ++_actual_statistic._cycles;
+              uint64_t cur_tsc = time::read_tsc();
+              need_flush_stat(flush_stat, cur_tsc);
+              invoke_fun_stat(invoke_main,
+                              _actual_statistic._max_main_function_time);
+              need_sleep(need_sleep_cycles, need_sleep_time, cur_tsc);
             }
           } else {
             while (is_running()) {
@@ -445,10 +480,24 @@ class thread {
           set_running();
           invoke_pre();
           if (has_config()) {
+            uint64_t need_sleep_cycles{0};
+            uint64_t need_sleep_time{0};
+            uint64_t need_call_logic_cycles{0};
+            uint64_t need_call_logic_time{0};
+            uint64_t start_tsc = time::read_tsc();
+            uint64_t flush_stat{get_flush_stat(start_tsc)};
+            fill_need_sleep(need_sleep_cycles, need_sleep_time, start_tsc);
+            fill_need_call_logic(need_call_logic_cycles, need_call_logic_time,
+                                 start_tsc);
             while (is_running()) {
-              invoke_main();
-              if (_thread_config._sleep) time::sleep(*_thread_config._sleep);
-              invoke_logic();
+              uint64_t cur_tsc = time::read_tsc();
+              ++_actual_statistic._cycles;
+              need_flush_stat(flush_stat, cur_tsc);
+              invoke_fun_stat(invoke_main,
+                              _actual_statistic._max_main_function_time);
+              invoke_logic_stat(invoke_logic, need_call_logic_cycles,
+                                need_call_logic_time, cur_tsc);
+              need_sleep(need_sleep_cycles, need_sleep_time, cur_tsc);
             }
           } else {
             while (is_running()) {
@@ -528,6 +577,111 @@ class thread {
 
  private:
   /**
+   * invoke main function and save statistic about how long execusion was
+   *
+   * @tparam InvokeFun must be callable function or object
+   * @param fun main function to call
+   * @param prev_max_time previous maximum
+   */
+  template <typename InvokeFun>
+  void invoke_fun_stat(InvokeFun& fun, uint64_t& prev_max_time) {
+    uint64_t const fun_start_tsc = time::read_tsc();
+    fun();
+    uint64_t const fun_end_tsc = time::read_tsc();
+    uint64_t const tsc_diff = fun_end_tsc - fun_start_tsc;
+    if (tsc_diff > prev_max_time) prev_max_time = tsc_diff;
+  }
+
+  /**
+   * invoke logic function
+   *
+   * invoke immediately if not set delay (need_call_logic_cycles,
+   * need_call_logic_time) @see thread_config
+   *
+   * @tparam InvokeLogic must be callable function or object
+   * @param invoke_logic logic function to call
+   * @param need_call_logic_cycles call delay in cycles
+   * @param need_call_logic_time call delay in time
+   * @param cur_tsc current tsc
+   */
+  template <typename InvokeLogic>
+  result invoke_logic_stat(InvokeLogic& invoke_logic,
+                           uint64_t& need_call_logic_cycles,
+                           uint64_t& need_call_logic_time,
+                           uint64_t const cur_tsc) {
+    if (need_call_logic_cycles || need_call_logic_time) {
+      bool will_call{false};
+      if (need_call_logic_time) {
+        will_call = need_call_logic_time <= cur_tsc;
+        if (will_call) {
+          while ((need_call_logic_time +=
+                  _thread_config._to_sleep_time->count()) < cur_tsc)
+            ;
+        }
+      } else {
+        will_call = need_call_logic_cycles <= _actual_statistic._cycles;
+        if (will_call)
+          need_call_logic_cycles += *_thread_config._logic_call_cycles;
+      }
+      if (will_call)
+        invoke_fun_stat(invoke_logic,
+                        _actual_statistic._max_logic_function_time);
+    } else {
+      invoke_fun_stat(invoke_logic, _actual_statistic._max_logic_function_time);
+    }
+  }
+
+  /**
+   * flush statistic
+   *
+   * will flush statistic only if flush_stat not null and less than cur_tsc
+   * @see thread_config
+   *
+   * @param flush_stat logic function to call
+   * @param cur_tsc current tsc
+   */
+  void need_flush_stat(uint64_t& flush_stat, uint64_t const cur_tsc) noexcept {
+    if (flush_stat && flush_stat <= cur_tsc) {
+      update_statistic();
+      while ((flush_stat += _thread_config._flush_statistic->count()) < cur_tsc)
+        ;
+    }
+  }
+
+  /**
+   * sleep execution thread
+   *
+   * sleep thread only if set needed parameter in config
+   * @see thread_config
+   *
+   * @param need_sleep_cycles delay to call sleep in cycles
+   * @param need_sleep_time delay to call sleep in time
+   * @param cur_tsc current tsc
+   */
+  void need_sleep(uint64_t& need_sleep_cycles, uint64_t& need_sleep_time,
+                  uint64_t const cur_tsc) const noexcept {
+    if (_thread_config._sleep) {
+      if (need_sleep_cycles || need_sleep_time) {
+        bool will_sleep{false};
+        if (need_sleep_time) {
+          will_sleep = need_sleep_time <= cur_tsc;
+          if (will_sleep) {
+            while ((need_sleep_time += _thread_config._to_sleep_time->count()) <
+                   cur_tsc)
+              ;
+          }
+        } else {
+          will_sleep = need_sleep_cycles <= _actual_statistic._cycles;
+          if (will_sleep) need_sleep_cycles += *_thread_config._to_sleep_cycles;
+        }
+        if (will_sleep) time::sleep(*_thread_config._sleep);
+      } else {
+        time::sleep(*_thread_config._sleep);
+      }
+    }
+  }
+
+  /**
    * set running state to thread.
    *
    * if it's in running state thread will stop. otherwise nothing will happen
@@ -569,6 +723,35 @@ class thread {
    * using lock to prevent race condition and inconsisten data
    */
   void copy_statistic(thread_statistic* to, thread_statistic* from) noexcept;
+
+  /**
+   * fill sleep parameters
+   *
+   * @param need_sleep_cycles delay to call sleep in cycles
+   * @param need_sleep_time delay to call sleep in time
+   * @param start_tsc current tsc
+   */
+  void fill_need_sleep(uint64_t& need_sleep_cycles, uint64_t& need_sleep_time,
+                       uint64_t const start_tsc);
+
+  /**
+   * fill call logic delay parameters
+   *
+   * @param need_call_logic_cycles call delay in cycles
+   * @param need_call_logic_time call delay in time
+   * @param cur_tsc current tsc
+   */
+  void fill_need_call_logic(uint64_t& need_call_logic_cycles,
+                            uint64_t& need_call_logic_time,
+                            uint64_t const start_tsc);
+
+  /**
+   * flush statistic
+   *
+   * @param start_tsc current tsc
+   * @return flush statistic timestamp
+   */
+  uint64_t get_flush_stat(uint64_t const start_tsc);
 
   std::atomic_bool _is_active{false};   ///< active flag
   std::string _name;                    ///< name of this thread

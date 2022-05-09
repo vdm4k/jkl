@@ -150,8 +150,9 @@ bool thread::set_config(thread_config* config) {
 }
 
 bool thread::has_config() const noexcept {
-  return _thread_config._statistic || _thread_config._logic_call ||
-         _thread_config._sleep;
+  return _thread_config._flush_statistic || _thread_config._logic_call_time ||
+         _thread_config._logic_call_cycles || _thread_config._to_sleep_cycles ||
+         _thread_config._to_sleep_time;
 }
 
 void thread::update_statistic() {
@@ -171,6 +172,38 @@ thread_statistic thread::get_statistic() noexcept {
   thread_statistic stat;
   copy_statistic(&stat, &_prev_statistic);
   return stat;
+}
+
+void thread::fill_need_sleep(uint64_t& need_sleep_cycles,
+                             uint64_t& need_sleep_time,
+                             uint64_t const start_tsc) {
+  if (_thread_config._sleep) {
+    need_sleep_cycles =
+        _thread_config._to_sleep_cycles ? *_thread_config._to_sleep_cycles : 0;
+    need_sleep_time = _thread_config._to_sleep_time
+                          ? start_tsc + _thread_config._to_sleep_time->count()
+                          : 0;
+  }
+}
+
+void thread::fill_need_call_logic(uint64_t& need_call_logic_cycles,
+                                  uint64_t& need_call_logic_time,
+                                  uint64_t const start_tsc) {
+  if (_thread_config._logic_call_cycles || _thread_config._logic_call_time) {
+    need_call_logic_cycles = _thread_config._logic_call_cycles
+                                 ? *_thread_config._logic_call_cycles
+                                 : 0;
+    need_call_logic_time =
+        _thread_config._logic_call_time
+            ? start_tsc + _thread_config._logic_call_time->count()
+            : 0;
+  }
+}
+
+uint64_t thread::get_flush_stat(uint64_t const start_tsc) {
+  return _thread_config._flush_statistic
+             ? start_tsc + _thread_config._flush_statistic->count()
+             : 0;
 }
 
 }  // namespace jkl::system

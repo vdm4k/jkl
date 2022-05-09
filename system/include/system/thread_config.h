@@ -19,9 +19,11 @@ struct thread_config {
   /// how long thread will sleep
   std::optional<std::chrono::microseconds> _sleep;
   /// how often need call logic function
-  std::optional<std::chrono::microseconds> _logic_call;
+  std::optional<std::chrono::microseconds> _logic_call_time;
+  /// how often need call logic function in cycles
+  std::optional<size_t> _logic_call_cycles;
   /// flush statistic
-  std::optional<std::chrono::microseconds> _statistic;
+  std::optional<std::chrono::microseconds> _flush_statistic;
 };
 
 };  // namespace jkl::system
