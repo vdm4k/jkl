@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <atomic>
 #include <optional>
@@ -44,10 +45,16 @@ auto callable(Callable&& fun, Args&&... args) {
  * provide thread function with additional logic
  *
  * This class provide next functionality -
- * 1. standart while loop idiom - call function while thread in running state
- * 2. monitoring - check how many loops done and others @see thread_statistic
- * 3. custom configuration @see thread_config
- * 4. OS specific function set name/set affinity
+ * 1.a. Standart while loop idiom - call function while thread in running state
+ * 1.b. With service function - sama as 1.a but with for proceeding additional
+ * logic.
+ * 1.c. With pre and post main function - sama as 1.a but with pre and
+ * post while loop function (for initialization thread specific
+ * structures).
+ * 1.d. With service and pre and post functions - 2b + 2c
+ * 2. Monitoring - can check how many times we proceed functions and how long it
+ * was.
+ * 3. OS specific functions - set name thread and set affinity thread
  */
 class thread {
  public:
@@ -292,9 +299,9 @@ class thread {
             while (is_running()) {
               ++_actual_statistic._cycles;
               uint64_t cur_tsc = time::read_tsc();
-              need_flush_stat(flush_stat, cur_tsc);
-              invoke_fun_stat(invoke_main,
-                              _actual_statistic._max_main_function_time);
+              need_flush_statistic(flush_stat, cur_tsc);
+              cur_tsc = invoke_fun_stat(
+                  invoke_main, _actual_statistic._max_main_function_time);
               need_sleep(need_sleep_cycles, need_sleep_time, cur_tsc);
             }
           } else {
@@ -351,11 +358,11 @@ class thread {
             while (is_running()) {
               uint64_t cur_tsc = time::read_tsc();
               ++_actual_statistic._cycles;
-              need_flush_stat(flush_stat, cur_tsc);
+              need_flush_statistic(flush_stat, cur_tsc);
               invoke_fun_stat(invoke_main,
                               _actual_statistic._max_main_function_time);
-              invoke_logic_stat(invoke_logic, need_call_logic_cycles,
-                                need_call_logic_time, cur_tsc);
+              cur_tsc = invoke_logic_stat(invoke_logic, need_call_logic_cycles,
+                                          need_call_logic_time, cur_tsc);
               need_sleep(need_sleep_cycles, need_sleep_time, cur_tsc);
             }
           } else {
@@ -416,9 +423,9 @@ class thread {
             while (is_running()) {
               ++_actual_statistic._cycles;
               uint64_t cur_tsc = time::read_tsc();
-              need_flush_stat(flush_stat, cur_tsc);
-              invoke_fun_stat(invoke_main,
-                              _actual_statistic._max_main_function_time);
+              need_flush_statistic(flush_stat, cur_tsc);
+              cur_tsc = invoke_fun_stat(
+                  invoke_main, _actual_statistic._max_main_function_time);
               need_sleep(need_sleep_cycles, need_sleep_time, cur_tsc);
             }
           } else {
@@ -492,11 +499,11 @@ class thread {
             while (is_running()) {
               uint64_t cur_tsc = time::read_tsc();
               ++_actual_statistic._cycles;
-              need_flush_stat(flush_stat, cur_tsc);
+              need_flush_statistic(flush_stat, cur_tsc);
               invoke_fun_stat(invoke_main,
                               _actual_statistic._max_main_function_time);
-              invoke_logic_stat(invoke_logic, need_call_logic_cycles,
-                                need_call_logic_time, cur_tsc);
+              cur_tsc = invoke_logic_stat(invoke_logic, need_call_logic_cycles,
+                                          need_call_logic_time, cur_tsc);
               need_sleep(need_sleep_cycles, need_sleep_time, cur_tsc);
             }
           } else {
@@ -582,14 +589,16 @@ class thread {
    * @tparam InvokeFun must be callable function or object
    * @param fun main function to call
    * @param prev_max_time previous maximum
+   * @return timestamp after function was execute
    */
   template <typename InvokeFun>
-  void invoke_fun_stat(InvokeFun& fun, uint64_t& prev_max_time) {
+  uint64_t invoke_fun_with_stat(InvokeFun& fun, uint64_t& prev_max_time) {
     uint64_t const fun_start_tsc = time::read_tsc();
     fun();
     uint64_t const fun_end_tsc = time::read_tsc();
     uint64_t const tsc_diff = fun_end_tsc - fun_start_tsc;
     if (tsc_diff > prev_max_time) prev_max_time = tsc_diff;
+    return fun_end_tsc;
   }
 
   /**
@@ -603,12 +612,12 @@ class thread {
    * @param need_call_logic_cycles call delay in cycles
    * @param need_call_logic_time call delay in time
    * @param cur_tsc current tsc
+   * @return timestamp after function was execute
    */
   template <typename InvokeLogic>
-  result invoke_logic_stat(InvokeLogic& invoke_logic,
-                           uint64_t& need_call_logic_cycles,
-                           uint64_t& need_call_logic_time,
-                           uint64_t const cur_tsc) {
+  uint64_t invoke_logic_stat(InvokeLogic& invoke_logic,
+                             uint64_t& need_call_logic_cycles,
+                             uint64_t& need_call_logic_time, uint64_t cur_tsc) {
     if (need_call_logic_cycles || need_call_logic_time) {
       bool will_call{false};
       if (need_call_logic_time) {
@@ -624,11 +633,13 @@ class thread {
           need_call_logic_cycles += *_thread_config._logic_call_cycles;
       }
       if (will_call)
-        invoke_fun_stat(invoke_logic,
-                        _actual_statistic._max_logic_function_time);
+        cur_tsc = invoke_fun_stat(invoke_logic,
+                                  _actual_statistic._max_logic_function_time);
     } else {
-      invoke_fun_stat(invoke_logic, _actual_statistic._max_logic_function_time);
+      cur_tsc = invoke_fun_stat(invoke_logic,
+                                _actual_statistic._max_logic_function_time);
     }
+    return cur_tsc;
   }
 
   /**
@@ -640,9 +651,10 @@ class thread {
    * @param flush_stat logic function to call
    * @param cur_tsc current tsc
    */
-  void need_flush_stat(uint64_t& flush_stat, uint64_t const cur_tsc) noexcept {
+  void need_flush_statistic(uint64_t& flush_stat,
+                            uint64_t const cur_tsc) noexcept {
     if (flush_stat && flush_stat <= cur_tsc) {
-      update_statistic();
+      flush_statistic();
       while ((flush_stat += _thread_config._flush_statistic->count()) < cur_tsc)
         ;
     }
@@ -715,7 +727,7 @@ class thread {
   /**
    * update statistic by working thread
    */
-  void update_statistic();
+  void flush_statistic();
 
   /**
    * copy statistic
@@ -759,7 +771,7 @@ class thread {
   std::thread _thread;                  ///< internal thread - std thread
   thread_statistic _actual_statistic;   ///< actual statistic
   thread_statistic _prev_statistic;     ///< previous statistic
-  std::atomic_bool _write_stat{false};  ///< flag for write stat
+  std::atomic_bool _write_stat{false};  ///< flag for write statistic
 };
 
 /** @} */  // end of thread

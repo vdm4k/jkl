@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BSD-3-Clause
 #include <gtest/gtest.h>
 #include <system/thread.h>
 

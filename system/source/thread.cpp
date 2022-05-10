@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BSD-3-Clause
 #include <system/thread.h>
 
 #ifdef __linux__
@@ -155,8 +156,9 @@ bool thread::has_config() const noexcept {
          _thread_config._to_sleep_time;
 }
 
-void thread::update_statistic() {
+void thread::flush_statistic() {
   copy_statistic(&_prev_statistic, &_actual_statistic);
+  memset(&_actual_statistic, 0, sizeof(thread_statistic));
 }
 
 void thread::copy_statistic(thread_statistic* to,
