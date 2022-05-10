@@ -5,7 +5,7 @@
 
 namespace jkl::system::time {
 
-/** @defgroup time
+/** @defgroup time time
  *  @{
  */
 

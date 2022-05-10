@@ -13,7 +13,7 @@
 
 namespace jkl::system {
 
-/** @defgroup thread
+/** @defgroup thread thread
  *  @{
  */
 
@@ -22,10 +22,20 @@ namespace jkl::system {
 */
 template <typename Function, typename... Args>
 struct callable_helper {
-  inline auto operator()() { return std::apply(_fun, _args); }
+  /**
+   * execute saved function
+   */
+  inline auto operator()() {
+    static_assert(
+        std::is_invocable<typename std::decay<Function>::type,
+                          typename std::decay<Args>::type...>::value,
+        "jkl::system::callable_helper arguments must be invocable after "
+        "conversion to rvalues");
+    return std::apply(_fun, _args);
+  }
 
-  Function _fun;
-  std::tuple<Args...> _args;
+  Function _fun;              ///< function to call
+  std::tuple<Args...> _args;  ///< args to function
 };
 
 /*!
@@ -35,7 +45,7 @@ template <typename Callable, typename... Args>
 auto callable(Callable&& fun, Args&&... args) {
   static_assert(std::is_invocable<typename std::decay<Callable>::type,
                                   typename std::decay<Args>::type...>::value,
-                "jkl::system::thread arguments must be invocable after "
+                "jkl::system::callable arguments must be invocable after "
                 "conversion to rvalues");
   return callable_helper<Callable, Args...>{std::forward<Callable>(fun),
                                             {std::forward<Args>(args)...}};
@@ -44,14 +54,14 @@ auto callable(Callable&& fun, Args&&... args) {
 /**
  * provide thread function with additional logic
  *
- * This class provide next functionality -
+ * This class provide next functionality - \n
+ * 1. Run Idiom \n
  * 1.a. Standart while loop idiom - call function while thread in running state
- * 1.b. With service function - sama as 1.a but with for proceeding additional
- * logic.
- * 1.c. With pre and post main function - sama as 1.a but with pre and
- * post while loop function (for initialization thread specific
- * structures).
- * 1.d. With service and pre and post functions - 2b + 2c
+ * \n 1.b. With service function - sama as 1.a but with for proceeding
+ * additional logic. \n 1.c. With pre and post main function - sama as 1.a but
+ * with pre and post while loop function (for initialization thread specific
+ * structures). \n
+ * 1.d. With service and pre and post functions - 2b + 2c \n
  * 2. Monitoring - can check how many times we proceed functions and how long it
  * was.
  * 3. OS specific functions - set name thread and set affinity thread
@@ -101,6 +111,7 @@ class thread {
    * @see thread_config
    *
    * @tparam InvokeMain must be callable function or object
+   * @param config thread configuration
    * @param invoke_main ref on main function
    */
   template <typename InvokeMain,
@@ -275,6 +286,7 @@ class thread {
    *
    * @tparam InvokeMain must be callable function or object
    * @param invoke_main ref on main function
+   * @param config thread configuration
    * @return if operation succeed result will be true. otherwise error
    * desription
    */
