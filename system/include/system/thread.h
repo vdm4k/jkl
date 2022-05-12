@@ -312,7 +312,7 @@ class thread {
               ++_actual_statistic._cycles;
               uint64_t cur_tsc = time::read_tsc();
               need_flush_statistic(flush_stat, cur_tsc);
-              cur_tsc = invoke_fun_stat(
+              cur_tsc = invoke_fun_with_stat(
                   invoke_main, _actual_statistic._max_main_function_time);
               need_sleep(need_sleep_cycles, need_sleep_time, cur_tsc);
             }
@@ -371,7 +371,7 @@ class thread {
               uint64_t cur_tsc = time::read_tsc();
               ++_actual_statistic._cycles;
               need_flush_statistic(flush_stat, cur_tsc);
-              invoke_fun_stat(invoke_main,
+              invoke_fun_with_stat(invoke_main,
                               _actual_statistic._max_main_function_time);
               cur_tsc = invoke_logic_stat(invoke_logic, need_call_logic_cycles,
                                           need_call_logic_time, cur_tsc);
@@ -436,7 +436,7 @@ class thread {
               ++_actual_statistic._cycles;
               uint64_t cur_tsc = time::read_tsc();
               need_flush_statistic(flush_stat, cur_tsc);
-              cur_tsc = invoke_fun_stat(
+              cur_tsc = invoke_fun_with_stat(
                   invoke_main, _actual_statistic._max_main_function_time);
               need_sleep(need_sleep_cycles, need_sleep_time, cur_tsc);
             }
@@ -512,7 +512,7 @@ class thread {
               uint64_t cur_tsc = time::read_tsc();
               ++_actual_statistic._cycles;
               need_flush_statistic(flush_stat, cur_tsc);
-              invoke_fun_stat(invoke_main,
+              invoke_fun_with_stat(invoke_main,
                               _actual_statistic._max_main_function_time);
               cur_tsc = invoke_logic_stat(invoke_logic, need_call_logic_cycles,
                                           need_call_logic_time, cur_tsc);
@@ -645,10 +645,10 @@ class thread {
           need_call_logic_cycles += *_thread_config._logic_call_cycles;
       }
       if (will_call)
-        cur_tsc = invoke_fun_stat(invoke_logic,
+        cur_tsc = invoke_fun_with_stat(invoke_logic,
                                   _actual_statistic._max_logic_function_time);
     } else {
-      cur_tsc = invoke_fun_stat(invoke_logic,
+      cur_tsc = invoke_fun_with_stat(invoke_logic,
                                 _actual_statistic._max_logic_function_time);
     }
     return cur_tsc;
