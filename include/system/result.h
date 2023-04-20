@@ -1,8 +1,6 @@
-// SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 
-namespace jkl {
-namespace system {
+namespace bro::system {
 
 /** @defgroup result result of function execution
  *  @{
@@ -21,26 +19,27 @@ struct result {
   /**
   * default copy ctor
   */
-  result(result const& res) = default;
+  result(result const &res) = default;
   /**
   * default move ctor
   */
-  result(result&& res) = default;
+  result(result &&res) = default;
   /**
   * default assign operator
   */
-  result& operator=(result const& res) = default;
+  result &operator=(result const &res) = default;
   /**
   * default assign move operator
   */
-  result& operator=(result&& res) = default;
+  result &operator=(result &&res) = default;
 
   /**
   * ctor from error name
   * 
   * @param name error name. Not own this string
   */
-  explicit result(char const* name) : _name(name){};
+  explicit result(char const *name)
+    : _name(name){};
 
   /**
    * is result good
@@ -61,19 +60,18 @@ struct result {
    *
    * @return error
    */
-  char const* get_name() const noexcept { return _name; }
+  char const *get_name() const noexcept { return _name; }
 
- private:
-  char const* _name = nullptr;     ///< error name - we not own this string
+private:
+  char const *_name = nullptr; ///< error name - we not own this string
 };
 
 /**
  * holding an operation result. *
  */
-template <typename Tp>
+template<typename Tp>
 struct expected : result {
-
-  using value_type = Tp;  ///< value type
+  using value_type = Tp; ///< value type
 
   /**
   * default ctor
@@ -85,12 +83,12 @@ struct expected : result {
   * 
   * @param res operation result 
   */
-  expected(result const& res) : result(res) {}
+  expected(result const &res)
+    : result(res) {}
 
-  value_type _value;   ///< value
+  value_type _value; ///< value
 };
 
-/** @} */  // end of result
+/** @} */ // end of result
 
-}  // namespace system
-}  // namespace jkl
+} // namespace bro::system

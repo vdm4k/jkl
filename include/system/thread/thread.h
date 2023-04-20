@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <atomic>
 #include <optional>
@@ -6,12 +5,12 @@
 #include <thread>
 #include <vector>
 
-#include "result.h"
-#include "thread_config.h"
-#include "thread_statistic.h"
-#include "time.h"
+#include <system/result.h>
+#include <system/time.h>
+#include "config.h"
+#include "statistic.h"
 
-namespace jkl::system {
+namespace bro::system::thread {
 
 /** @defgroup thread thread
  *  @{
@@ -20,35 +19,31 @@ namespace jkl::system {
 /*!
     \brief callable wrapper - provide lazy call
 */
-template <typename Function, typename... Args>
+template<typename Function, typename... Args>
 struct callable_helper {
   /**
    * execute saved function
    */
   inline auto operator()() {
-    static_assert(
-        std::is_invocable<typename std::decay<Function>::type,
-                          typename std::decay<Args>::type...>::value,
-        "jkl::system::callable_helper arguments must be invocable after "
-        "conversion to rvalues");
+    static_assert(std::is_invocable<typename std::decay<Function>::type, typename std::decay<Args>::type...>::value,
+                  "jkl::system::callable_helper arguments must be invocable after "
+                  "conversion to rvalues");
     return std::apply(_fun, _args);
   }
 
-  Function _fun;              ///< function to call
-  std::tuple<Args...> _args;  ///< args to function
+  Function _fun;             ///< function to call
+  std::tuple<Args...> _args; ///< args to function
 };
 
 /*!
     \brief helper function to create callable
 */
-template <typename Callable, typename... Args>
-auto callable(Callable&& fun, Args&&... args) {
-  static_assert(std::is_invocable<typename std::decay<Callable>::type,
-                                  typename std::decay<Args>::type...>::value,
+template<typename Callable, typename... Args>
+auto callable(Callable &&fun, Args &&...args) {
+  static_assert(std::is_invocable<typename std::decay<Callable>::type, typename std::decay<Args>::type...>::value,
                 "jkl::system::callable arguments must be invocable after "
                 "conversion to rvalues");
-  return callable_helper<Callable, Args...>{std::forward<Callable>(fun),
-                                            {std::forward<Args>(args)...}};
+  return callable_helper<Callable, Args...>{std::forward<Callable>(fun), {std::forward<Args>(args)...}};
 };
 
 /**
@@ -67,7 +62,7 @@ auto callable(Callable&& fun, Args&&... args) {
  * 3. OS specific functions - set name thread and set affinity thread
  */
 class thread {
- public:
+public:
   /**
    * default constructor
    */
@@ -79,28 +74,28 @@ class thread {
    * don't want to do because it will look like pimpl.
    * if we want move we can use unique_ptr as wraper
    */
-  thread(thread&& l) noexcept = delete;
+  thread(thread &&l) noexcept = delete;
 
   /**
    * assign operator
    *
    * can't do two similar threads
    */
-  thread(thread const& l) noexcept = delete;
+  thread(thread const &l) noexcept = delete;
 
   /**
    * construct and run thread (similar as std::thread but with running flag)
    *
    * This is good case whan we need loop functionality and/or monitoring
-   * @see thread_config
+   * @see config
    *
    * @tparam Callable must be callable function or object
    * @tparam Args must arguments for calling function
    * @param fun ref on main function or callable object
    * @param args arguments for calling main function or callable object
    */
-  template <typename Callable, typename... Args>
-  thread(Callable&& fun, Args&&... args) {
+  template<typename Callable, typename... Args>
+  thread(Callable &&fun, Args &&...args) {
     run(std::forward<Callable>(fun), std::forward<Args>(args)...);
   }
 
@@ -108,15 +103,14 @@ class thread {
    * construct and run thread (similar as std::thread but with running flag)
    *
    * This is good case whan we need loop functionality and/or monitoring
-   * @see thread_config
+   * @see config
    *
    * @tparam InvokeMain must be callable function or object
    * @param config thread configuration
    * @param invoke_main ref on main function
    */
-  template <typename InvokeMain,
-            std::enable_if_t<std::is_invocable_v<InvokeMain>, bool> = true>
-  thread(InvokeMain&& invoke_main, thread_config* config = nullptr) {
+  template<typename InvokeMain, std::enable_if_t<std::is_invocable_v<InvokeMain>, bool> = true>
+  thread(InvokeMain &&invoke_main, config *config = nullptr) {
     run(std::forward<InvokeMain>(invoke_main), config);
   }
 
@@ -125,7 +119,7 @@ class thread {
    *
    * Sometimes we need to call additional function for example every n
    * microseconds. Also we can do monitoring for this thread and other things
-   * @see thread_config
+   * @see config
    *
    * @tparam InvokeMain must be callable function or object
    * @tparam InvokeLogic must be callable function or object  ( business logic )
@@ -133,14 +127,11 @@ class thread {
    * @param invoke_logic additional function to call ( business logic proceed )
    * @param config thread configuration
    */
-  template <typename InvokeMain, typename InvokeLogic,
-            std::enable_if_t<std::is_invocable_v<InvokeMain> &&
-                                 std::is_invocable_v<InvokeLogic>,
-                             bool> = true>
-  thread(InvokeMain&& invoke_main, InvokeLogic&& invoke_logic,
-         thread_config* config = nullptr) {
-    run_with_logic(std::forward<InvokeMain>(invoke_main),
-                   std::forward<InvokeLogic>(invoke_logic), config);
+  template<typename InvokeMain,
+           typename InvokeLogic,
+           std::enable_if_t<std::is_invocable_v<InvokeMain> && std::is_invocable_v<InvokeLogic>, bool> = true>
+  thread(InvokeMain &&invoke_main, InvokeLogic &&invoke_logic, config *config = nullptr) {
+    run_with_logic(std::forward<InvokeMain>(invoke_main), std::forward<InvokeLogic>(invoke_logic), config);
   }
 
   /**
@@ -149,7 +140,7 @@ class thread {
    * Call 2 additional function before and after main loop.
    * This is a good one if we need some initialization and free after thread
    * stop. Also we can do monitoring for this thread and other things
-   * @see thread_config
+   * @see config
    *
    * @tparam InvokeMain must be callable function or object
    * @tparam InvokePre must be callable function or object
@@ -159,16 +150,17 @@ class thread {
    * @param invoke_post will call this function after main loop
    * @param config thread configuration
    */
-  template <typename InvokeMain, typename InvokePre, typename InvokePost,
-            std::enable_if_t<std::is_invocable_v<InvokeMain> &&
-                                 std::is_invocable_v<InvokePre> &&
-                                 std::is_invocable_v<InvokePost>,
-                             bool> = true>
-  thread(InvokeMain&& invoke_main, InvokePre&& invoke_pre,
-         InvokePost&& invoke_post, thread_config* config = nullptr) {
+  template<
+    typename InvokeMain,
+    typename InvokePre,
+    typename InvokePost,
+    std::enable_if_t<std::is_invocable_v<InvokeMain> && std::is_invocable_v<InvokePre> && std::is_invocable_v<InvokePost>,
+                     bool> = true>
+  thread(InvokeMain &&invoke_main, InvokePre &&invoke_pre, InvokePost &&invoke_post, config *config = nullptr) {
     run_with_pre_post(std::forward<InvokeMain>(invoke_main),
                       std::forward<InvokePre>(invoke_pre),
-                      std::forward<InvokePost>(invoke_post), config);
+                      std::forward<InvokePost>(invoke_post),
+                      config);
   }
 
   /**
@@ -178,7 +170,7 @@ class thread {
    * logic proceed function. This is a good one if we need some initialization
    * and free after thread stop and proceed some business logic. Also we can do
    * monitoring for this thread and other things
-   * @see thread_config
+   * @see config
    *
    * @tparam InvokeMain must be callable function or object
    * @tparam InvokeLogic must be callable function or object  ( business logic )
@@ -190,20 +182,25 @@ class thread {
    * @param invoke_post will call this function after main loop
    * @param config thread configuration
    */
-  template <
-      typename InvokeMain, typename InvokeLogic, typename InvokePre,
-      typename InvokePost,
-      std::enable_if_t<
-          std::is_invocable_v<InvokeMain> && std::is_invocable_v<InvokeLogic> &&
-              std::is_invocable_v<InvokePre> && std::is_invocable_v<InvokePost>,
-          bool> = true>
-  thread(InvokeMain&& invoke_main, InvokeLogic&& invoke_logic,
-         InvokePre&& invoke_pre, InvokePost&& invoke_post,
-         thread_config* config = nullptr) {
+  template<
+    typename InvokeMain,
+    typename InvokeLogic,
+    typename InvokePre,
+    typename InvokePost,
+    std::enable_if_t<
+      std::is_invocable_v<
+        InvokeMain> && std::is_invocable_v<InvokeLogic> && std::is_invocable_v<InvokePre> && std::is_invocable_v<InvokePost>,
+      bool> = true>
+  thread(InvokeMain &&invoke_main,
+         InvokeLogic &&invoke_logic,
+         InvokePre &&invoke_pre,
+         InvokePost &&invoke_post,
+         config *config = nullptr) {
     run_with_logic_pre_post(std::forward<InvokeMain>(invoke_main),
                             std::forward<InvokeLogic>(invoke_logic),
                             std::forward<InvokePre>(invoke_pre),
-                            std::forward<InvokePost>(invoke_post), config);
+                            std::forward<InvokePost>(invoke_post),
+                            config);
   }
 
   /**
@@ -218,7 +215,7 @@ class thread {
    *
    * can't do two similar threads
    */
-  thread& operator=(const thread&) = delete;
+  thread &operator=(thread const &) = delete;
 
   /**
    * move assign operator
@@ -226,23 +223,22 @@ class thread {
    * don't want to do because it will look like pimpl.
    * if we want move we can use unique_ptr as wraper
    */
-  thread& operator=(thread&& l) = delete;
+  thread &operator=(thread &&l) = delete;
 
   /**
    * is thread in running state or not
    *
    * @return true if it's in running state
    */
-  bool is_running() const noexcept {
-    return _is_active.load(std::memory_order_acquire);
-  }
+  bool is_running() const noexcept { return _is_active.load(std::memory_order_acquire); }
 
   /**
    * will stop thread if is was running. wait while thread running
    */
   void stop() {
     set_running(false);
-    if (_thread.joinable()) _thread.join();
+    if (_thread.joinable())
+      _thread.join();
   }
 
   /**
@@ -256,16 +252,15 @@ class thread {
    * @return if operation succeed result will be true. otherwise error
    * desription
    */
-  template <typename Callable, typename... Args>
-  result run(Callable&& fun, Args&&... args) {
-    static_assert(std::is_invocable<typename std::decay<Callable>::type,
-                                    typename std::decay<Args>::type...>::value,
+  template<typename Callable, typename... Args>
+  result run(Callable &&fun, Args &&...args) {
+    static_assert(std::is_invocable<typename std::decay<Callable>::type, typename std::decay<Args>::type...>::value,
                   "jkl::system::thread arguments must be invocable after "
                   "conversion to rvalues");
 
-    if (is_thread_running()) return result{"thread is in running state"};
-    auto fn = callable_helper<Callable, Args...>{std::forward<Callable>(fun),
-                                                 {std::forward<Args>(args)...}};
+    if (is_thread_running())
+      return result{"thread is in running state"};
+    auto fn = callable_helper<Callable, Args...>{std::forward<Callable>(fun), {std::forward<Args>(args)...}};
     _thread = std::thread([fun = std::move(fn), this]() mutable {
       set_running();
       while (is_running()) {
@@ -282,7 +277,7 @@ class thread {
    * run thread (similar as std::thread but with running flag)
    *
    * This is good case whan we need loop functionality and/or monitoring
-   * @see thread_config
+   * @see config
    *
    * @tparam InvokeMain must be callable function or object
    * @param invoke_main ref on main function
@@ -290,39 +285,38 @@ class thread {
    * @return if operation succeed result will be true. otherwise error
    * desription
    */
-  template <typename InvokeMain>
-  result run(InvokeMain&& invoke_main, thread_config* config = nullptr) {
+  template<typename InvokeMain>
+  result run(InvokeMain &&invoke_main, config *config = nullptr) {
     static_assert(std::is_invocable<InvokeMain>::value,
                   "jkl::system::thread arguments must be invocable after "
                   "conversion to rvalues");
-    if (is_thread_running()) return result{"thread is in running state"};
+    if (is_thread_running())
+      return result{"thread is in running state"};
 
     set_config(config);
-    _thread =
-        std::thread([invoke_main = std::move(invoke_main), this]() mutable {
-          set_running();
-          if (has_config()) {
-            uint64_t need_sleep_cycles{0};
-            uint64_t need_sleep_time{0};
-            uint64_t start_tsc = time::read_tsc();
-            uint64_t flush_stat{get_flush_stat(start_tsc)};
-            fill_need_sleep(need_sleep_cycles, need_sleep_time, start_tsc);
+    _thread = std::thread([invoke_main = std::move(invoke_main), this]() mutable {
+      set_running();
+      if (has_config()) {
+        uint64_t need_sleep_cycles{0};
+        uint64_t need_sleep_time{0};
+        uint64_t start_tsc = time::read_tsc();
+        uint64_t flush_stat{get_flush_stat(start_tsc)};
+        fill_need_sleep(need_sleep_cycles, need_sleep_time, start_tsc);
 
-            while (is_running()) {
-              ++_actual_statistic._cycles;
-              uint64_t cur_tsc = time::read_tsc();
-              need_flush_statistic(flush_stat, cur_tsc);
-              cur_tsc = invoke_fun_with_stat(
-                  invoke_main, _actual_statistic._max_main_function_time);
-              need_sleep(need_sleep_cycles, need_sleep_time, cur_tsc);
-            }
-          } else {
-            while (is_running()) {
-              invoke_main();
-            }
-          }
-          set_running(false);
-        });
+        while (is_running()) {
+          ++_actual_statistic._cycles;
+          uint64_t cur_tsc = time::read_tsc();
+          need_flush_statistic(flush_stat, cur_tsc);
+          cur_tsc = invoke_fun_with_stat(invoke_main, _actual_statistic._max_main_function_time);
+          need_sleep(need_sleep_cycles, need_sleep_time, cur_tsc);
+        }
+      } else {
+        while (is_running()) {
+          invoke_main();
+        }
+      }
+      set_running(false);
+    });
     while (!is_running())
       ;
     return {};
@@ -333,7 +327,7 @@ class thread {
    *
    * Sometimes we need to call additional function for example every n
    * microseconds. Also we can do monitoring for this thread and other things
-   * @see thread_config
+   * @see config
    *
    * @tparam InvokeMain must be callable function or object
    * @tparam InvokeLogic must be callable function or object  ( business logic )
@@ -343,48 +337,43 @@ class thread {
    * @return if operation succeed result will be true. otherwise error
    * desription
    */
-  template <typename InvokeMain, typename InvokeLogic>
-  result run_with_logic(InvokeMain&& invoke_main, InvokeLogic&& invoke_logic,
-                        thread_config* config = nullptr) {
-    static_assert(std::is_invocable<InvokeMain>::value &&
-                      std::is_invocable<InvokeLogic>::value,
+  template<typename InvokeMain, typename InvokeLogic>
+  result run_with_logic(InvokeMain &&invoke_main, InvokeLogic &&invoke_logic, config *config = nullptr) {
+    static_assert(std::is_invocable<InvokeMain>::value && std::is_invocable<InvokeLogic>::value,
                   "jkl::system::thread arguments must be invocable after "
                   "conversion to rvalues");
-    if (is_thread_running()) return result{"thread is in running state"};
+    if (is_thread_running())
+      return result{"thread is in running state"};
     set_config(config);
-    _thread =
-        std::thread([invoke_main = std::move(invoke_main),
-                     invoke_logic = std::move(invoke_logic), this]() mutable {
-          set_running();
-          if (has_config()) {
-            uint64_t need_sleep_cycles{0};
-            uint64_t need_sleep_time{0};
-            uint64_t need_call_logic_cycles{0};
-            uint64_t need_call_logic_time{0};
-            uint64_t start_tsc = time::read_tsc();
-            uint64_t flush_stat{get_flush_stat(start_tsc)};
-            fill_need_sleep(need_sleep_cycles, need_sleep_time, start_tsc);
-            fill_need_call_logic(need_call_logic_cycles, need_call_logic_time,
-                                 start_tsc);
+    _thread = std::thread(
+      [invoke_main = std::move(invoke_main), invoke_logic = std::move(invoke_logic), this]() mutable {
+        set_running();
+        if (has_config()) {
+          uint64_t need_sleep_cycles{0};
+          uint64_t need_sleep_time{0};
+          uint64_t need_call_logic_cycles{0};
+          uint64_t need_call_logic_time{0};
+          uint64_t start_tsc = time::read_tsc();
+          uint64_t flush_stat{get_flush_stat(start_tsc)};
+          fill_need_sleep(need_sleep_cycles, need_sleep_time, start_tsc);
+          fill_need_call_logic(need_call_logic_cycles, need_call_logic_time, start_tsc);
 
-            while (is_running()) {
-              uint64_t cur_tsc = time::read_tsc();
-              ++_actual_statistic._cycles;
-              need_flush_statistic(flush_stat, cur_tsc);
-              invoke_fun_with_stat(invoke_main,
-                              _actual_statistic._max_main_function_time);
-              cur_tsc = invoke_logic_stat(invoke_logic, need_call_logic_cycles,
-                                          need_call_logic_time, cur_tsc);
-              need_sleep(need_sleep_cycles, need_sleep_time, cur_tsc);
-            }
-          } else {
-            while (is_running()) {
-              invoke_main();
-              invoke_logic();
-            }
+          while (is_running()) {
+            uint64_t cur_tsc = time::read_tsc();
+            ++_actual_statistic._cycles;
+            need_flush_statistic(flush_stat, cur_tsc);
+            invoke_fun_with_stat(invoke_main, _actual_statistic._max_main_function_time);
+            cur_tsc = invoke_logic_stat(invoke_logic, need_call_logic_cycles, need_call_logic_time, cur_tsc);
+            need_sleep(need_sleep_cycles, need_sleep_time, cur_tsc);
           }
-          set_running(false);
-        });
+        } else {
+          while (is_running()) {
+            invoke_main();
+            invoke_logic();
+          }
+        }
+        set_running(false);
+      });
     while (!is_running())
       ;
     return {};
@@ -396,7 +385,7 @@ class thread {
    * Call 2 additional function before and after main loop.
    * This is a good one if we need some initialization and free after thread
    * stop. Also we can do monitoring for this thread and other things
-   * @see thread_config
+   * @see config
    *
    * @tparam InvokeMain must be callable function or object
    * @tparam InvokePre must be callable function or object
@@ -408,46 +397,46 @@ class thread {
    * @return if operation succeed result will be true. otherwise error
    * desription
    */
-  template <typename InvokeMain, typename InvokePre, typename InvokePost>
-  result run_with_pre_post(InvokeMain&& invoke_main, InvokePre&& invoke_pre,
-                           InvokePost&& invoke_post,
-                           thread_config* config = nullptr) {
-    static_assert(std::is_invocable<InvokeMain>::value &&
-                      std::is_invocable<InvokePre>::value &&
-                      std::is_invocable<InvokePost>::value,
+  template<typename InvokeMain, typename InvokePre, typename InvokePost>
+  result run_with_pre_post(InvokeMain &&invoke_main,
+                           InvokePre &&invoke_pre,
+                           InvokePost &&invoke_post,
+                           config *config = nullptr) {
+    static_assert(std::is_invocable<InvokeMain>::value && std::is_invocable<InvokePre>::value
+                    && std::is_invocable<InvokePost>::value,
                   "jkl::system::thread arguments must be invocable after "
                   "conversion to rvalues");
-    if (is_thread_running()) return result{"thread is in running state"};
+    if (is_thread_running())
+      return result{"thread is in running state"};
     set_config(config);
-    _thread =
-        std::thread([invoke_main = std::move(invoke_main),
-                     invoke_pre = std::move(invoke_pre),
-                     invoke_post = std::move(invoke_post), this]() mutable {
-          set_running();
-          invoke_pre();
-          if (has_config()) {
-            uint64_t need_sleep_cycles{0};
-            uint64_t need_sleep_time{0};
-            uint64_t start_tsc = time::read_tsc();
-            uint64_t flush_stat{get_flush_stat(start_tsc)};
-            fill_need_sleep(need_sleep_cycles, need_sleep_time, start_tsc);
+    _thread = std::thread([invoke_main = std::move(invoke_main),
+                           invoke_pre = std::move(invoke_pre),
+                           invoke_post = std::move(invoke_post),
+                           this]() mutable {
+      set_running();
+      invoke_pre();
+      if (has_config()) {
+        uint64_t need_sleep_cycles{0};
+        uint64_t need_sleep_time{0};
+        uint64_t start_tsc = time::read_tsc();
+        uint64_t flush_stat{get_flush_stat(start_tsc)};
+        fill_need_sleep(need_sleep_cycles, need_sleep_time, start_tsc);
 
-            while (is_running()) {
-              ++_actual_statistic._cycles;
-              uint64_t cur_tsc = time::read_tsc();
-              need_flush_statistic(flush_stat, cur_tsc);
-              cur_tsc = invoke_fun_with_stat(
-                  invoke_main, _actual_statistic._max_main_function_time);
-              need_sleep(need_sleep_cycles, need_sleep_time, cur_tsc);
-            }
-          } else {
-            while (is_running()) {
-              invoke_main();
-            }
-          }
-          invoke_post();
-          set_running(false);
-        });
+        while (is_running()) {
+          ++_actual_statistic._cycles;
+          uint64_t cur_tsc = time::read_tsc();
+          need_flush_statistic(flush_stat, cur_tsc);
+          cur_tsc = invoke_fun_with_stat(invoke_main, _actual_statistic._max_main_function_time);
+          need_sleep(need_sleep_cycles, need_sleep_time, cur_tsc);
+        }
+      } else {
+        while (is_running()) {
+          invoke_main();
+        }
+      }
+      invoke_post();
+      set_running(false);
+    });
     while (!is_running())
       ;
     return {};
@@ -460,7 +449,7 @@ class thread {
    * logic proceed function. This is a good one if we need some initialization
    * and free after thread stop and proceed some business logic. Also we can do
    * monitoring for this thread and other things
-   * @see thread_config
+   * @see config
    *
    * @tparam InvokeMain must be callable function or object
    * @tparam InvokeLogic must be callable function or object  ( business logic )
@@ -474,59 +463,57 @@ class thread {
    * @return if operation succeed result will be true. otherwise error
    * desription
    */
-  template <typename InvokeMain, typename InvokeLogic, typename InvokePre,
-            typename InvokePost,
-            std::enable_if_t<std::is_invocable_v<InvokeLogic>, bool> = true>
-  result run_with_logic_pre_post(InvokeMain&& invoke_main,
-                                 InvokeLogic&& invoke_logic,
-                                 InvokePre&& invoke_pre,
-                                 InvokePost&& invoke_post,
-                                 thread_config* config = nullptr) {
-    static_assert(std::is_invocable<InvokeMain>::value &&
-                      std::is_invocable<InvokeLogic>::value &&
-                      std::is_invocable<InvokePre>::value &&
-                      std::is_invocable<InvokePost>::value,
+  template<typename InvokeMain,
+           typename InvokeLogic,
+           typename InvokePre,
+           typename InvokePost,
+           std::enable_if_t<std::is_invocable_v<InvokeLogic>, bool> = true>
+  result run_with_logic_pre_post(InvokeMain &&invoke_main,
+                                 InvokeLogic &&invoke_logic,
+                                 InvokePre &&invoke_pre,
+                                 InvokePost &&invoke_post,
+                                 config *config = nullptr) {
+    static_assert(std::is_invocable<InvokeMain>::value && std::is_invocable<InvokeLogic>::value
+                    && std::is_invocable<InvokePre>::value && std::is_invocable<InvokePost>::value,
                   "jkl::system::thread arguments must be invocable after "
                   "conversion to rvalues");
-    if (is_thread_running()) return result{"thread is in running state"};
+    if (is_thread_running())
+      return result{"thread is in running state"};
     set_config(config);
 
-    _thread =
-        std::thread([invoke_main = std::move(invoke_main),
-                     invoke_logic = std::move(invoke_logic),
-                     invoke_pre = std::move(invoke_pre),
-                     invoke_post = std::move(invoke_post), this]() mutable {
-          set_running();
-          invoke_pre();
-          if (has_config()) {
-            uint64_t need_sleep_cycles{0};
-            uint64_t need_sleep_time{0};
-            uint64_t need_call_logic_cycles{0};
-            uint64_t need_call_logic_time{0};
-            uint64_t start_tsc = time::read_tsc();
-            uint64_t flush_stat{get_flush_stat(start_tsc)};
-            fill_need_sleep(need_sleep_cycles, need_sleep_time, start_tsc);
-            fill_need_call_logic(need_call_logic_cycles, need_call_logic_time,
-                                 start_tsc);
-            while (is_running()) {
-              uint64_t cur_tsc = time::read_tsc();
-              ++_actual_statistic._cycles;
-              need_flush_statistic(flush_stat, cur_tsc);
-              invoke_fun_with_stat(invoke_main,
-                              _actual_statistic._max_main_function_time);
-              cur_tsc = invoke_logic_stat(invoke_logic, need_call_logic_cycles,
-                                          need_call_logic_time, cur_tsc);
-              need_sleep(need_sleep_cycles, need_sleep_time, cur_tsc);
-            }
-          } else {
-            while (is_running()) {
-              invoke_main();
-              invoke_logic();
-            }
-          }
-          invoke_post();
-          set_running(false);
-        });
+    _thread = std::thread([invoke_main = std::move(invoke_main),
+                           invoke_logic = std::move(invoke_logic),
+                           invoke_pre = std::move(invoke_pre),
+                           invoke_post = std::move(invoke_post),
+                           this]() mutable {
+      set_running();
+      invoke_pre();
+      if (has_config()) {
+        uint64_t need_sleep_cycles{0};
+        uint64_t need_sleep_time{0};
+        uint64_t need_call_logic_cycles{0};
+        uint64_t need_call_logic_time{0};
+        uint64_t start_tsc = time::read_tsc();
+        uint64_t flush_stat{get_flush_stat(start_tsc)};
+        fill_need_sleep(need_sleep_cycles, need_sleep_time, start_tsc);
+        fill_need_call_logic(need_call_logic_cycles, need_call_logic_time, start_tsc);
+        while (is_running()) {
+          uint64_t cur_tsc = time::read_tsc();
+          ++_actual_statistic._cycles;
+          need_flush_statistic(flush_stat, cur_tsc);
+          invoke_fun_with_stat(invoke_main, _actual_statistic._max_main_function_time);
+          cur_tsc = invoke_logic_stat(invoke_logic, need_call_logic_cycles, need_call_logic_time, cur_tsc);
+          need_sleep(need_sleep_cycles, need_sleep_time, cur_tsc);
+        }
+      } else {
+        while (is_running()) {
+          invoke_main();
+          invoke_logic();
+        }
+      }
+      invoke_post();
+      set_running(false);
+    });
     while (!is_running())
       ;
     return {};
@@ -543,14 +530,14 @@ class thread {
    * @return if operation succeed result will be true. otherwise error
    * desription
    */
-  result set_name(std::string const& name);
+  result set_name(std::string const &name);
 
   /**
    * get thread name
    *
    * @return thread name
    */
-  std::string const& get_name() const noexcept { return _name; }
+  std::string const &get_name() const noexcept { return _name; }
 
   /**
    * set affinity to specific cores. (Thread must be in running
@@ -560,7 +547,7 @@ class thread {
    * @return if operation succeed result will be true. otherwise error
    * desription
    */
-  result set_affinity(std::vector<size_t> const& core_ids);
+  result set_affinity(std::vector<size_t> const &core_ids);
 
   /**
    * get affinity for thread. Thread must be in running
@@ -575,26 +562,26 @@ class thread {
    *
    * @return std thread
    */
-  std::thread const& get_std_thread() const;
+  std::thread const &get_std_thread() const;
 
   /**
    * get current thread configuration
    *
    * @return current configuration
    */
-  thread_config const& get_config() const noexcept { return _thread_config; }
+  config const &get_config() const noexcept { return _config; }
 
   /**
    * get current thread statistic
    *
-   * will have actual values only if set needed fields in @see thread_config
+   * will have actual values only if set needed fields in @see config
    * statistic for prev measurement
    *
-   * @return thread_statistic @see thread_statistic
+   * @return statistic @see statistic
    */
-  thread_statistic get_statistic() noexcept;
+  statistic get_statistic() noexcept;
 
- private:
+private:
   /**
    * invoke main function and save statistic about how long execusion was
    *
@@ -603,13 +590,14 @@ class thread {
    * @param prev_max_time previous maximum
    * @return timestamp after function was execute
    */
-  template <typename InvokeFun>
-  uint64_t invoke_fun_with_stat(InvokeFun& fun, uint64_t& prev_max_time) {
+  template<typename InvokeFun>
+  uint64_t invoke_fun_with_stat(InvokeFun &fun, uint64_t &prev_max_time) {
     uint64_t const fun_start_tsc = time::read_tsc();
     fun();
     uint64_t const fun_end_tsc = time::read_tsc();
     uint64_t const tsc_diff = fun_end_tsc - fun_start_tsc;
-    if (tsc_diff > prev_max_time) prev_max_time = tsc_diff;
+    if (tsc_diff > prev_max_time)
+      prev_max_time = tsc_diff;
     return fun_end_tsc;
   }
 
@@ -617,7 +605,7 @@ class thread {
    * invoke logic function
    *
    * invoke immediately if not set delay (need_call_logic_cycles,
-   * need_call_logic_time) @see thread_config
+   * need_call_logic_time) @see config
    *
    * @tparam InvokeLogic must be callable function or object
    * @param invoke_logic logic function to call
@@ -626,30 +614,28 @@ class thread {
    * @param cur_tsc current tsc
    * @return timestamp after function was execute
    */
-  template <typename InvokeLogic>
-  uint64_t invoke_logic_stat(InvokeLogic& invoke_logic,
-                             uint64_t& need_call_logic_cycles,
-                             uint64_t& need_call_logic_time, uint64_t cur_tsc) {
+  template<typename InvokeLogic>
+  uint64_t invoke_logic_stat(InvokeLogic &invoke_logic,
+                             uint64_t &need_call_logic_cycles,
+                             uint64_t &need_call_logic_time,
+                             uint64_t cur_tsc) {
     if (need_call_logic_cycles || need_call_logic_time) {
       bool will_call{false};
       if (need_call_logic_time) {
         will_call = need_call_logic_time <= cur_tsc;
         if (will_call) {
-          while ((need_call_logic_time +=
-                  _thread_config._to_sleep_time->count()) < cur_tsc)
+          while ((need_call_logic_time += _config._to_sleep_time->count()) < cur_tsc)
             ;
         }
       } else {
         will_call = need_call_logic_cycles <= _actual_statistic._cycles;
         if (will_call)
-          need_call_logic_cycles += *_thread_config._logic_call_cycles;
+          need_call_logic_cycles += *_config._logic_call_cycles;
       }
       if (will_call)
-        cur_tsc = invoke_fun_with_stat(invoke_logic,
-                                  _actual_statistic._max_logic_function_time);
+        cur_tsc = invoke_fun_with_stat(invoke_logic, _actual_statistic._max_logic_function_time);
     } else {
-      cur_tsc = invoke_fun_with_stat(invoke_logic,
-                                _actual_statistic._max_logic_function_time);
+      cur_tsc = invoke_fun_with_stat(invoke_logic, _actual_statistic._max_logic_function_time);
     }
     return cur_tsc;
   }
@@ -658,16 +644,15 @@ class thread {
    * flush statistic
    *
    * will flush statistic only if flush_stat not null and less than cur_tsc
-   * @see thread_config
+   * @see config
    *
    * @param flush_stat logic function to call
    * @param cur_tsc current tsc
    */
-  void need_flush_statistic(uint64_t& flush_stat,
-                            uint64_t const cur_tsc) noexcept {
+  void need_flush_statistic(uint64_t &flush_stat, uint64_t const cur_tsc) noexcept {
     if (flush_stat && flush_stat <= cur_tsc) {
       flush_statistic();
-      while ((flush_stat += _thread_config._flush_statistic->count()) < cur_tsc)
+      while ((flush_stat += _config._flush_statistic->count()) < cur_tsc)
         ;
     }
   }
@@ -676,31 +661,31 @@ class thread {
    * sleep execution thread
    *
    * sleep thread only if set needed parameter in config
-   * @see thread_config
+   * @see config
    *
    * @param need_sleep_cycles delay to call sleep in cycles
    * @param need_sleep_time delay to call sleep in time
    * @param cur_tsc current tsc
    */
-  void need_sleep(uint64_t& need_sleep_cycles, uint64_t& need_sleep_time,
-                  uint64_t const cur_tsc) const noexcept {
-    if (_thread_config._sleep) {
+  void need_sleep(uint64_t &need_sleep_cycles, uint64_t &need_sleep_time, uint64_t const cur_tsc) const noexcept {
+    if (_config._sleep) {
       if (need_sleep_cycles || need_sleep_time) {
         bool will_sleep{false};
         if (need_sleep_time) {
           will_sleep = need_sleep_time <= cur_tsc;
           if (will_sleep) {
-            while ((need_sleep_time += _thread_config._to_sleep_time->count()) <
-                   cur_tsc)
+            while ((need_sleep_time += _config._to_sleep_time->count()) < cur_tsc)
               ;
           }
         } else {
           will_sleep = need_sleep_cycles <= _actual_statistic._cycles;
-          if (will_sleep) need_sleep_cycles += *_thread_config._to_sleep_cycles;
+          if (will_sleep)
+            need_sleep_cycles += *_config._to_sleep_cycles;
         }
-        if (will_sleep) time::sleep(*_thread_config._sleep);
+        if (will_sleep)
+          time::sleep(*_config._sleep);
       } else {
-        time::sleep(*_thread_config._sleep);
+        time::sleep(*_config._sleep);
       }
     }
   }
@@ -710,9 +695,7 @@ class thread {
    *
    * if it's in running state thread will stop. otherwise nothing will happen
    */
-  void set_running(bool active = true) noexcept {
-    _is_active.store(active, std::memory_order_release);
-  }
+  void set_running(bool active = true) noexcept { _is_active.store(active, std::memory_order_release); }
 
   /**
    * set configuration
@@ -721,7 +704,7 @@ class thread {
    *
    * @return true if save new configuration
    */
-  bool set_config(thread_config* config);
+  bool set_config(config *config);
 
   /**
    * check if configuration has important values ( ex. thread sleep )
@@ -746,7 +729,7 @@ class thread {
    *
    * using lock to prevent race condition and inconsisten data
    */
-  void copy_statistic(thread_statistic* to, thread_statistic* from) noexcept;
+  void copy_statistic(statistic *to, statistic *from) noexcept;
 
   /**
    * fill sleep parameters
@@ -755,8 +738,7 @@ class thread {
    * @param need_sleep_time delay to call sleep in time
    * @param start_tsc current tsc
    */
-  void fill_need_sleep(uint64_t& need_sleep_cycles, uint64_t& need_sleep_time,
-                       uint64_t const start_tsc);
+  void fill_need_sleep(uint64_t &need_sleep_cycles, uint64_t &need_sleep_time, uint64_t const start_tsc);
 
   /**
    * fill call logic delay parameters
@@ -765,9 +747,7 @@ class thread {
    * @param need_call_logic_time call delay in time
    * @param cur_tsc current tsc
    */
-  void fill_need_call_logic(uint64_t& need_call_logic_cycles,
-                            uint64_t& need_call_logic_time,
-                            uint64_t const start_tsc);
+  void fill_need_call_logic(uint64_t &need_call_logic_cycles, uint64_t &need_call_logic_time, uint64_t const start_tsc);
 
   /**
    * flush statistic
@@ -777,15 +757,15 @@ class thread {
    */
   uint64_t get_flush_stat(uint64_t const start_tsc);
 
-  std::atomic_bool _is_active{false};   ///< active flag
-  std::string _name;                    ///< name of this thread
-  thread_config _thread_config;         ///< current configuration
-  std::thread _thread;                  ///< internal thread - std thread
-  thread_statistic _actual_statistic;   ///< actual statistic
-  thread_statistic _prev_statistic;     ///< previous statistic
-  std::atomic_bool _write_stat{false};  ///< flag for write statistic
+  std::atomic_bool _is_active{false};  ///< active flag
+  std::string _name;                   ///< name of this thread
+  config _config;                      ///< current configuration
+  std::thread _thread;                 ///< internal thread - std thread
+  statistic _actual_statistic;         ///< actual statistic
+  statistic _prev_statistic;           ///< previous statistic
+  std::atomic_bool _write_stat{false}; ///< flag for write statistic
 };
 
-/** @} */  // end of thread
+/** @} */ // end of thread
 
-}  // namespace jkl::system
+} // namespace bro::system::thread

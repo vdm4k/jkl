@@ -1,8 +1,7 @@
-// SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <stdint.h>
 
-namespace jkl::system {
+namespace bro::system::thread {
 
 /*!
  * @brief thread statistic
@@ -11,7 +10,7 @@ namespace jkl::system {
  *
  * @ingroup thread
  */
-struct thread_statistic {
+struct statistic {
   /// how many cycles thread did
   uint64_t _cycles{0};
   /// max time spend in function
@@ -21,4 +20,4 @@ struct thread_statistic {
   /// how much time we spend in loop
   uint64_t _busy_time{0};
 };
-};  // namespace jkl::system
+}; // namespace bro::system::thread

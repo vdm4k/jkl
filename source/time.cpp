@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: BSD-3-Clause
 #include <sys/time.h>
 #include <system/time.h>
 
@@ -8,7 +7,7 @@
 #include <mutex>
 #include <thread>
 
-namespace jkl::system::time {
+namespace bro::system::time {
 
 static uint64_t g_tsc_resolution_in_ms{0};
 static uint64_t const g_usec_per_sec{1'000'000};
@@ -38,12 +37,13 @@ void init_timestamp() {
 
 std::chrono::microseconds get_timestamp() noexcept {
   uint64_t delta_tsc = read_tsc() - g_start_tsc;
-  uint64_t delta_usec = uint64_t(static_cast<long double>(delta_tsc) *
-                                 g_usec_per_sec / g_tsc_resolution_in_ms);
+  uint64_t delta_usec = uint64_t(static_cast<long double>(delta_tsc) * g_usec_per_sec / g_tsc_resolution_in_ms);
   return std::chrono::microseconds(g_start_timeofday + delta_usec);
 }
 
 uint64_t read_tsc() noexcept {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
   union {
     uint64_t _tsc;
     struct {
@@ -51,12 +51,13 @@ uint64_t read_tsc() noexcept {
       uint32_t _hi;
     };
   } rdtsc;
+#pragma GCC diagnostic pop
 
   asm volatile("rdtsc" : "=a"(rdtsc._lo), "=d"(rdtsc._hi));
   return rdtsc._tsc;
 }
 
-void sleep(std::chrono::microseconds const& time) {
+void sleep(std::chrono::microseconds const &time) {
   if (time.count()) {
     std::this_thread::sleep_for(time);
   } else {
@@ -64,4 +65,4 @@ void sleep(std::chrono::microseconds const& time) {
   }
 }
 
-}  // namespace jkl::system::time
+} // namespace bro::system::time

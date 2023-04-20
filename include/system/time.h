@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <chrono>
 #include <cstdint>
 
-namespace jkl::system::time {
+namespace bro::system::time {
 
 /** @defgroup time time
  *  @{
@@ -37,8 +36,8 @@ uint64_t read_tsc() noexcept;
  *
  * @param time sleep time
  */
-void sleep(std::chrono::microseconds const& time);
+void sleep(std::chrono::microseconds const &time);
 
-/** @} */  // end of time
+/** @} */ // end of time
 
-}  // namespace jkl::system::time
+} // namespace bro::system::time

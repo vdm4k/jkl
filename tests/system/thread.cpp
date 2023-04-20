@@ -1,32 +1,32 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <gtest/gtest.h>
-#include <system/thread.h>
+#include <system/thread/thread.h>
 
-namespace jkl::system::test {
+namespace bro::system::thread::test {
 
 static std::atomic_bool g_test_plus_called{false};
-static int test_plus(int left, int right, int& res) {
+static int test_plus(int left, int right, int &res) {
   res = left + right;
   g_test_plus_called = true;
   return res;
 }
 
 static std::atomic_bool g_minus_called{false};
-int test_minus(int left, int right, int& res) {
+int test_minus(int left, int right, int &res) {
   res = left - right;
   g_minus_called = true;
   return res;
 }
 
 static std::atomic_bool g_pre_fun_called{false};
-static void pre_fun(int& res) {
+static void pre_fun(int &res) {
   ASSERT_EQ(res, 0);
   res = 1;
   g_pre_fun_called = true;
 }
 
 static std::atomic_bool g_post_fun_called{false};
-static void post_fun(int& res) {
+static void post_fun(int &res) {
   ASSERT_EQ(res, 1);
   res = 0;
   g_post_fun_called = true;
@@ -39,7 +39,9 @@ TEST(thread, callable) {
   EXPECT_EQ(res, 3);
 }
 
-TEST(thread, no_fun) { thread thr; }
+TEST(thread, no_fun) {
+  thread thr;
+}
 
 TEST(thread, named) {
   thread thr;
@@ -123,8 +125,7 @@ TEST(thread, main_and_business_logic_function_call) {
     thread thr;
     g_test_plus_called = false;
     g_minus_called = false;
-    thr.run_with_logic(callable(test_plus, 1, 2, std::ref(plus_res)),
-                       callable(test_minus, 4, 2, std::ref(minus_res)));
+    thr.run_with_logic(callable(test_plus, 1, 2, std::ref(plus_res)), callable(test_minus, 4, 2, std::ref(minus_res)));
     while (!g_test_plus_called || !g_minus_called)
       ;
     EXPECT_EQ(plus_res, 3);
@@ -136,8 +137,7 @@ TEST(thread, main_and_business_logic_function_call) {
     int minus_res{0};
     g_test_plus_called = false;
     g_minus_called = false;
-    thread thr(callable(test_plus, 1, 2, std::ref(plus_res)),
-               callable(test_minus, 4, 2, std::ref(minus_res)));
+    thread thr(callable(test_plus, 1, 2, std::ref(plus_res)), callable(test_minus, 4, 2, std::ref(minus_res)));
     while (!g_test_plus_called || !g_minus_called)
       ;
     EXPECT_EQ(plus_res, 3);
@@ -197,11 +197,10 @@ TEST(thread, main_and_business_logic_pre_and_post_called) {
       thread thr;
       g_test_plus_called = false;
       g_minus_called = false;
-      thr.run_with_logic_pre_post(
-          callable(test_plus, 1, 2, std::ref(plus_res)),
-          callable(test_minus, 4, 2, std::ref(minus_res)),
-          callable(pre_fun, std::ref(pre_post_fun_res)),
-          callable(post_fun, std::ref(pre_post_fun_res)));
+      thr.run_with_logic_pre_post(callable(test_plus, 1, 2, std::ref(plus_res)),
+                                  callable(test_minus, 4, 2, std::ref(minus_res)),
+                                  callable(pre_fun, std::ref(pre_post_fun_res)),
+                                  callable(post_fun, std::ref(pre_post_fun_res)));
       while (!g_test_plus_called || !g_minus_called)
         ;
       EXPECT_TRUE(g_pre_fun_called.load(std::memory_order_acquire));
@@ -236,4 +235,4 @@ TEST(thread, main_and_business_logic_pre_and_post_called) {
   }
 }
 
-}  // namespace jkl::system::test
+} // namespace bro::system::thread::test

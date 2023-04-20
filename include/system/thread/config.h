@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <chrono>
 #include <optional>
 
-namespace jkl::system {
+namespace bro::system::thread {
 
 /*!
  * @brief thread configuration
@@ -12,7 +11,7 @@ namespace jkl::system {
  *
  * @ingroup thread
  */
-struct thread_config {
+struct config {
   /// how often call sleep in cycles
   std::optional<size_t> _to_sleep_cycles;
   /// how often call sleep time measurement
@@ -27,4 +26,4 @@ struct thread_config {
   std::optional<std::chrono::microseconds> _flush_statistic;
 };
 
-};  // namespace jkl::system
+}; // namespace bro::system::thread
