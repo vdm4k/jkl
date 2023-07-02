@@ -1,8 +1,9 @@
 cmake_minimum_required(VERSION 3.3.2)
 project(system_test VERSION 1.0.0 DESCRIPTION "system library tests" LANGUAGES CXX)
 
+
+include("${PROJECT_SOURCE_DIR}/third_party/gtest.cmake")
 enable_testing()
-find_package(GTest REQUIRED)
 
 file(GLOB_RECURSE CPP_FILES ${${PROJECT_NAME}_SOURCE_DIR}/*.cpp)
 file(GLOB_RECURSE H_FILES   ${${PROJECT_NAME}_SOURCE_DIR}/*.h)

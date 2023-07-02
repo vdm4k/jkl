@@ -5,6 +5,18 @@
 namespace bro::system::thread::test {
 
 static std::atomic_bool g_test_plus_called{false};
+struct testStruct {
+    bool operator()(int left, int right) {
+        _left = left;
+        _right = right;
+        g_test_plus_called = true;
+        return true;
+    }
+    int _left = 0;
+    int _right = 0;
+};
+
+
 static int test_plus(int left, int right, int &res) {
   res = left + right;
   g_test_plus_called = true;
@@ -41,6 +53,20 @@ TEST(thread, callable) {
 
 TEST(thread, no_fun) {
   thread thr;
+}
+
+TEST(thread, functor) {
+  thread thr;
+  g_test_plus_called = false;
+  testStruct tSt;
+  thr.run(tSt, 1, 2);
+  while (!g_test_plus_called)
+      ;
+
+  thr.stop();
+  EXPECT_FALSE(thr.is_running());
+  EXPECT_EQ(tSt._left, 1);
+  EXPECT_EQ(tSt._right, 2);
 }
 
 TEST(thread, named) {
@@ -234,5 +260,48 @@ TEST(thread, main_and_business_logic_pre_and_post_called) {
     EXPECT_EQ(pre_post_fun_res, 0);
   }
 }
+
+
+TEST(thread, statistic_for_main_loop) {
+  thread thr;
+  config conf{};
+  conf._flush_statistic = std::chrono::milliseconds(1);
+  g_test_plus_called = false;
+  testStruct tSt;
+  thr.run(callable(tSt, 1, 2), &conf);
+  while (!g_test_plus_called)
+    ;
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  thr.stop();
+  EXPECT_FALSE(thr.is_running());
+  EXPECT_EQ(tSt._left, 1);
+  EXPECT_EQ(tSt._right, 2);
+  auto stat = thr.get_statistic();
+  EXPECT_EQ(stat._empty_loops, 0);
+  EXPECT_NE(stat._loops, 0);
+}
+
+TEST(thread, statistic_for_void_main_loop) {
+  thread thr;
+  config conf{};
+  conf._flush_statistic = std::chrono::milliseconds(1);
+  g_test_plus_called = false;
+  int left{0};
+  int right{0};
+  thr.run(callable([&left, &right](int l, int r) {left = l; right = r; g_test_plus_called = true; return 0; }, 1, 2), &conf);
+  while (!g_test_plus_called)
+    ;
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  thr.stop();
+  EXPECT_FALSE(thr.is_running());
+  EXPECT_EQ(left, 1);
+  EXPECT_EQ(right, 2);
+  auto stat = thr.get_statistic();
+  EXPECT_NE(stat._empty_loops, 0);
+  EXPECT_NE(stat._loops, 0);
+}
+
 
 } // namespace bro::system::thread::test

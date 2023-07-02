@@ -152,8 +152,8 @@ bool thread::set_config(config *config) {
 }
 
 bool thread::has_config() const noexcept {
-  return _config._flush_statistic || _config._logic_call_time || _config._logic_call_cycles || _config._to_sleep_cycles
-         || _config._to_sleep_time;
+  return _config._flush_statistic || _config._call_logic_fun || _config._call_logic_on_n_loop || _config._call_sleep_on_n_loop
+         || _config._call_sleep;
 }
 
 void thread::flush_statistic() {
@@ -175,19 +175,19 @@ statistic thread::get_statistic() noexcept {
   return stat;
 }
 
-void thread::fill_need_sleep(uint64_t &need_sleep_cycles, uint64_t &need_sleep_time, uint64_t const start_tsc) {
+void thread::fill_need_sleep(uint64_t &call_sleep_on_n_loop, uint64_t &call_sleep, uint64_t const start_tsc) {
   if (_config._sleep) {
-    need_sleep_cycles = _config._to_sleep_cycles ? *_config._to_sleep_cycles : 0;
-    need_sleep_time = _config._to_sleep_time ? start_tsc + _config._to_sleep_time->count() : 0;
+    call_sleep_on_n_loop = _config._call_sleep_on_n_loop ? *_config._call_sleep_on_n_loop : 0;
+    call_sleep = _config._call_sleep ? start_tsc + _config._call_sleep->count() : 0;
   }
 }
 
-void thread::fill_need_call_logic(uint64_t &need_call_logic_cycles,
-                                  uint64_t &need_call_logic_time,
+void thread::fill_need_call_logic(uint64_t &call_logic_on_n_loop,
+                                  uint64_t &call_logic_fun,
                                   uint64_t const start_tsc) {
-  if (_config._logic_call_cycles || _config._logic_call_time) {
-    need_call_logic_cycles = _config._logic_call_cycles ? *_config._logic_call_cycles : 0;
-    need_call_logic_time = _config._logic_call_time ? start_tsc + _config._logic_call_time->count() : 0;
+  if (_config._call_logic_on_n_loop || _config._call_logic_fun) {
+    call_logic_on_n_loop = _config._call_logic_on_n_loop ? *_config._call_logic_on_n_loop : 0;
+    call_logic_fun = _config._call_logic_fun ? start_tsc + _config._call_logic_fun->count() : 0;
   }
 }
 
