@@ -7,6 +7,7 @@ set(H_FILES
     include/system/thread/statistic.h
     include/system/thread/thread.h
     include/system/time.h
+    include/system/stack_allocator.h
 )
 
 set(CPP_FILES
