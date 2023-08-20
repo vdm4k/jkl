@@ -153,7 +153,7 @@ bool thread::set_config(config *config) {
 
 bool thread::has_config() const noexcept {
   return _config._flush_statistic || _config._call_logic_fun || _config._call_logic_on_n_loop || _config._call_sleep_on_n_loop
-         || _config._call_sleep;
+         || _config._call_sleep || _config._call_sleep_on_n_empty_loop_in_a_row;
 }
 
 void thread::flush_statistic() {
