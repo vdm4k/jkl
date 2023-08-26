@@ -130,7 +130,7 @@ public:
   template<typename InvokeMain,
            typename InvokeLogic,
            std::enable_if_t<std::is_invocable_v<InvokeMain> && std::is_invocable_v<InvokeLogic>, bool> = true>
-  thread(InvokeMain &&invoke_main, InvokeLogic &&invoke_logic, config *config = nullptr) {
+  thread(InvokeMain &&invoke_main, InvokeLogic &&invoke_logic, config const *config = nullptr) {
     run_with_logic(std::forward<InvokeMain>(invoke_main), std::forward<InvokeLogic>(invoke_logic), config);
   }
 
@@ -156,7 +156,7 @@ public:
     typename InvokePost,
     std::enable_if_t<std::is_invocable_v<InvokeMain> && std::is_invocable_v<InvokePre> && std::is_invocable_v<InvokePost>,
                      bool> = true>
-  thread(InvokeMain &&invoke_main, InvokePre &&invoke_pre, InvokePost &&invoke_post, config *config = nullptr) {
+  thread(InvokeMain &&invoke_main, InvokePre &&invoke_pre, InvokePost &&invoke_post, config const *config = nullptr) {
     run_with_pre_post(std::forward<InvokeMain>(invoke_main),
                       std::forward<InvokePre>(invoke_pre),
                       std::forward<InvokePost>(invoke_post),
@@ -339,7 +339,7 @@ public:
    * desription
    */
   template<typename InvokeMain, typename InvokeLogic>
-  result run_with_logic(InvokeMain &&invoke_main, InvokeLogic &&invoke_logic, config *config = nullptr) {
+  result run_with_logic(InvokeMain &&invoke_main, InvokeLogic &&invoke_logic, config const *config = nullptr) {
     static_assert(std::is_invocable<InvokeMain>::value && std::is_invocable<InvokeLogic>::value,
                   "jkl::system::thread arguments must be invocable after "
                   "conversion to rvalues");
@@ -403,7 +403,7 @@ public:
   result run_with_pre_post(InvokeMain &&invoke_main,
                            InvokePre &&invoke_pre,
                            InvokePost &&invoke_post,
-                           config *config = nullptr) {
+                           config const *config = nullptr) {
     static_assert(std::is_invocable<InvokeMain>::value && std::is_invocable<InvokePre>::value
                     && std::is_invocable<InvokePost>::value,
                   "jkl::system::thread arguments must be invocable after "
@@ -475,7 +475,7 @@ public:
                                  InvokeLogic &&invoke_logic,
                                  InvokePre &&invoke_pre,
                                  InvokePost &&invoke_post,
-                                 config *config = nullptr) {
+                                 config const *config = nullptr) {
     static_assert(std::is_invocable<InvokeMain>::value && std::is_invocable<InvokeLogic>::value
                     && std::is_invocable<InvokePre>::value && std::is_invocable<InvokePost>::value,
                   "jkl::system::thread arguments must be invocable after "
@@ -727,7 +727,7 @@ private:
    *
    * @return true if save new configuration
    */
-  bool set_config(config *config);
+  bool set_config(config const *config);
 
   /**
    * check if configuration has important values ( ex. thread sleep )

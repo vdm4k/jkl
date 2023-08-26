@@ -143,7 +143,7 @@ result thread::is_thread_running() const noexcept {
   return {};
 }
 
-bool thread::set_config(config *config) {
+bool thread::set_config(config const *config) {
   if (config) {
     _config = *config;
     return true;
