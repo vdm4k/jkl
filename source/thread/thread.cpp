@@ -175,24 +175,28 @@ statistic thread::get_statistic() noexcept {
   return stat;
 }
 
-void thread::fill_need_sleep(uint64_t &call_sleep_on_n_loop, uint64_t &call_sleep, uint64_t const start_tsc) {
+std::pair<uint64_t, std::chrono::microseconds> thread::get_need_sleep(std::chrono::microseconds const start) const noexcept {
+  uint64_t call_sleep_on_n_loop{0};
+  std::chrono::microseconds call_sleep_on_time{0};
   if (_config._sleep) {
     call_sleep_on_n_loop = _config._call_sleep_on_n_loop ? *_config._call_sleep_on_n_loop : 0;
-    call_sleep = _config._call_sleep ? start_tsc + _config._call_sleep->count() : 0;
+    call_sleep_on_time = _config._call_sleep ? start + *_config._call_sleep : std::chrono::microseconds{0};
   }
+  return {call_sleep_on_n_loop, call_sleep_on_time};
 }
 
-void thread::fill_need_call_logic(uint64_t &call_logic_on_n_loop,
-                                  uint64_t &call_logic_fun,
-                                  uint64_t const start_tsc) {
+std::pair<uint64_t, std::chrono::microseconds> thread::get_need_call_logic(std::chrono::microseconds const start) const noexcept {
+  uint64_t call_logic_on_n_loop{0};
+  std::chrono::microseconds call_logic_fun{0};
   if (_config._call_logic_on_n_loop || _config._call_logic_fun) {
     call_logic_on_n_loop = _config._call_logic_on_n_loop ? *_config._call_logic_on_n_loop : 0;
-    call_logic_fun = _config._call_logic_fun ? start_tsc + _config._call_logic_fun->count() : 0;
+    call_logic_fun = _config._call_logic_fun ? start + *_config._call_logic_fun : std::chrono::microseconds{0};
   }
+  return {call_logic_on_n_loop, call_logic_fun};
 }
 
-uint64_t thread::get_flush_stat(uint64_t const start_tsc) {
-  return _config._flush_statistic ? start_tsc + _config._flush_statistic->count() : 0;
+std::chrono::microseconds thread::get_flush_stat(std::chrono::microseconds start_tsc) {
+  return _config._flush_statistic ? start_tsc + *_config._flush_statistic : std::chrono::microseconds{0};
 }
 
 } // namespace bro::system::thread

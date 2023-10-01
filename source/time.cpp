@@ -1,7 +1,6 @@
 #include <sys/time.h>
 #include <system/time.h>
 
-#include <cerrno>
 #include <chrono>
 #include <cstdint>
 #include <mutex>
@@ -10,7 +9,8 @@
 namespace bro::system::time {
 
 static uint64_t g_tsc_resolution_in_ms{0};
-static uint64_t const g_usec_per_sec{1'000'000};
+static uint64_t constexpr g_usec_per_sec{1'000'000};
+static uint64_t constexpr g_usec_per_msec{1'000};
 static uint64_t g_start_timeofday{0};
 static uint64_t g_start_tsc{0};
 
@@ -37,7 +37,7 @@ void init_timestamp() {
 
 std::chrono::microseconds get_timestamp() noexcept {
   uint64_t delta_tsc = read_tsc() - g_start_tsc;
-  uint64_t delta_usec = uint64_t(static_cast<long double>(delta_tsc) * g_usec_per_sec / g_tsc_resolution_in_ms);
+  uint64_t delta_usec = uint64_t(static_cast<long double>(delta_tsc) * g_usec_per_msec / g_tsc_resolution_in_ms);
   return std::chrono::microseconds(g_start_timeofday + delta_usec);
 }
 

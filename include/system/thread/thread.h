@@ -290,26 +290,25 @@ public:
     static_assert(std::is_invocable<InvokeMain>::value,
                   "jkl::system::thread arguments must be invocable after "
                   "conversion to rvalues");
+    time::init_timestamp();
     if (is_thread_running())
       return result{"thread is in running state"};
 
     set_config(config);
     _thread = std::thread([invoke_main = std::move(invoke_main), this]() mutable {
       set_running();
-      if (has_config()) {
-        uint64_t need_sleep_loop{0};
-        uint64_t call_sleep{0};
-        uint64_t empty_loops_in_a_row{0};
-        uint64_t start_tsc = time::read_tsc();
-        uint64_t flush_stat{get_flush_stat(start_tsc)};
-        fill_need_sleep(need_sleep_loop, call_sleep, start_tsc);
+      if (has_config()) {        
+        std::chrono::microseconds start{time::get_timestamp()};
+        std::chrono::microseconds next_flush_stat{get_flush_stat(start)};
+        auto [call_sleep_on_n_loop, call_sleep_on_time] = get_need_sleep(start);
+        uint64_t call_sleep_on_n_empty_loop_in_a_row{0};
 
         while (is_running()) {
-            ++_actual_statistic._loops;
-          uint64_t cur_tsc = time::read_tsc();
-          need_flush_statistic(flush_stat, cur_tsc);
-          cur_tsc = invoke_fun_with_stat(invoke_main, _actual_statistic._max_main_function_time, empty_loops_in_a_row, _actual_statistic._empty_loops);
-          need_sleep(need_sleep_loop, call_sleep, empty_loops_in_a_row, cur_tsc);
+          ++_actual_statistic._loops;
+          std::chrono::microseconds cur_time = time::get_timestamp();
+          next_flush_stat = flush_statistic(next_flush_stat, cur_time);
+          cur_time = invoke_fun_with_stat(invoke_main, _actual_statistic._max_main_function_time, call_sleep_on_n_empty_loop_in_a_row, _actual_statistic._empty_loops);
+          need_to_sleep(call_sleep_on_n_loop, call_sleep_on_time, call_sleep_on_n_empty_loop_in_a_row, cur_time);
         }
       } else {
         while (is_running()) {
@@ -343,6 +342,7 @@ public:
     static_assert(std::is_invocable<InvokeMain>::value && std::is_invocable<InvokeLogic>::value,
                   "jkl::system::thread arguments must be invocable after "
                   "conversion to rvalues");
+    time::init_timestamp();
     if (is_thread_running())
       return result{"thread is in running state"};
     set_config(config);
@@ -350,23 +350,19 @@ public:
       [invoke_main = std::move(invoke_main), invoke_logic = std::move(invoke_logic), this]() mutable {
         set_running();
         if (has_config()) {
-          uint64_t call_sleep_on_n_loop{0};
-          uint64_t call_sleep{0};
-          uint64_t call_logic_on_n_loop{0};
-          uint64_t call_logic_fun{0};
-          uint64_t empty_loops_in_a_row{0};
-          uint64_t start_tsc = time::read_tsc();
-          uint64_t flush_stat{get_flush_stat(start_tsc)};
-          fill_need_sleep(call_sleep_on_n_loop, call_sleep, start_tsc);
-          fill_need_call_logic(call_logic_on_n_loop, call_logic_fun, start_tsc);
+          std::chrono::microseconds start{time::get_timestamp()};
+          std::chrono::microseconds next_flush_stat{get_flush_stat(start)};
+          auto [call_sleep_on_n_loop, call_sleep_on_time] = get_need_sleep(start);
+          auto[call_logic_on_n_loop, call_logic_on_time] = get_need_call_logic(start);
+          uint64_t call_sleep_on_n_empty_loop_in_a_row{0};
 
           while (is_running()) {
-            uint64_t cur_tsc = time::read_tsc();
-              ++_actual_statistic._loops;
-            need_flush_statistic(flush_stat, cur_tsc);
-            invoke_fun_with_stat(invoke_main, _actual_statistic._max_main_function_time, empty_loops_in_a_row, _actual_statistic._empty_loops);
-            cur_tsc = invoke_logic_stat(invoke_logic, call_logic_on_n_loop, call_logic_fun, cur_tsc);
-            need_sleep(call_sleep_on_n_loop, call_sleep, empty_loops_in_a_row, cur_tsc);
+            std::chrono::microseconds cur_time = time::get_timestamp();
+            ++_actual_statistic._loops;
+            next_flush_stat = flush_statistic(next_flush_stat, cur_time);
+            invoke_fun_with_stat(invoke_main, _actual_statistic._max_main_function_time, call_sleep_on_n_empty_loop_in_a_row, _actual_statistic._empty_loops);
+            cur_time = invoke_logic_stat(invoke_logic, call_logic_on_n_loop, call_logic_on_time, cur_time);
+            need_to_sleep(call_sleep_on_n_loop, call_sleep_on_time, call_sleep_on_n_empty_loop_in_a_row, cur_time);
           }
         } else {
           while (is_running()) {
@@ -408,6 +404,7 @@ public:
                     && std::is_invocable<InvokePost>::value,
                   "jkl::system::thread arguments must be invocable after "
                   "conversion to rvalues");
+    time::init_timestamp();
     if (is_thread_running())
       return result{"thread is in running state"};
     set_config(config);
@@ -418,19 +415,17 @@ public:
       set_running();
       invoke_pre();
       if (has_config()) {
-        uint64_t call_sleep_on_n_loop{0};
-        uint64_t call_sleep{0};
-        uint64_t empty_loops_in_a_row{0};
-        uint64_t start_tsc = time::read_tsc();
-        uint64_t flush_stat{get_flush_stat(start_tsc)};
-        fill_need_sleep(call_sleep_on_n_loop, call_sleep, start_tsc);
+          std::chrono::microseconds start{time::get_timestamp()};
+          std::chrono::microseconds next_flush_stat{get_flush_stat(start)};
+          auto [call_sleep_on_n_loop, call_sleep_on_time] = get_need_sleep(start);
+          uint64_t call_sleep_on_n_empty_loop_in_a_row{0};
 
         while (is_running()) {
-            ++_actual_statistic._loops;
-          uint64_t cur_tsc = time::read_tsc();
-          need_flush_statistic(flush_stat, cur_tsc);
-          cur_tsc = invoke_fun_with_stat(invoke_main, _actual_statistic._max_main_function_time, empty_loops_in_a_row, _actual_statistic._empty_loops);
-          need_sleep(call_sleep_on_n_loop, call_sleep, empty_loops_in_a_row, cur_tsc);
+          ++_actual_statistic._loops;
+          std::chrono::microseconds cur_time = time::get_timestamp();
+          next_flush_stat = flush_statistic(next_flush_stat, cur_time);
+          cur_time = invoke_fun_with_stat(invoke_main, _actual_statistic._max_main_function_time, call_sleep_on_n_empty_loop_in_a_row, _actual_statistic._empty_loops);
+          need_to_sleep(call_sleep_on_n_loop, call_sleep_on_time, call_sleep_on_n_empty_loop_in_a_row, cur_time);
         }
       } else {
         while (is_running()) {
@@ -480,6 +475,7 @@ public:
                     && std::is_invocable<InvokePre>::value && std::is_invocable<InvokePost>::value,
                   "jkl::system::thread arguments must be invocable after "
                   "conversion to rvalues");
+    time::init_timestamp();
     if (is_thread_running())
       return result{"thread is in running state"};
     set_config(config);
@@ -492,22 +488,19 @@ public:
       set_running();
       invoke_pre();
       if (has_config()) {
-        uint64_t call_sleep_on_n_loop{0};
-        uint64_t call_sleep{0};
-        uint64_t call_logic_on_n_loop{0};
-        uint64_t call_logic_fun{0};
-        uint64_t empty_loops_in_a_row{0};
-        uint64_t start_tsc = time::read_tsc();
-        uint64_t flush_stat{get_flush_stat(start_tsc)};
-        fill_need_sleep(call_sleep_on_n_loop, call_sleep, start_tsc);
-        fill_need_call_logic(call_logic_on_n_loop, call_logic_fun, start_tsc);
+          std::chrono::microseconds start{time::get_timestamp()};
+          std::chrono::microseconds next_flush_stat{get_flush_stat(start)};
+          auto [call_sleep_on_n_loop, call_sleep_on_time] = get_need_sleep(start);
+          auto[call_logic_on_n_loop, call_logic_on_time] = get_need_call_logic(start);
+          uint64_t call_sleep_on_n_empty_loop_in_a_row{0};
+
         while (is_running()) {
-          uint64_t cur_tsc = time::read_tsc();
-            ++_actual_statistic._loops;
-          need_flush_statistic(flush_stat, cur_tsc);
-          invoke_fun_with_stat(invoke_main, _actual_statistic._max_main_function_time, empty_loops_in_a_row, _actual_statistic._empty_loops);
-          cur_tsc = invoke_logic_stat(invoke_logic, call_logic_on_n_loop, call_logic_fun, cur_tsc);
-          need_sleep(call_sleep_on_n_loop, call_sleep, empty_loops_in_a_row, cur_tsc);
+          std::chrono::microseconds cur_time = time::get_timestamp();
+          ++_actual_statistic._loops;
+          next_flush_stat = flush_statistic(next_flush_stat, cur_time);
+          invoke_fun_with_stat(invoke_main, _actual_statistic._max_main_function_time, call_sleep_on_n_empty_loop_in_a_row, _actual_statistic._empty_loops);
+          cur_time = invoke_logic_stat(invoke_logic, call_logic_on_n_loop, call_logic_on_time, cur_time);
+          need_to_sleep(call_sleep_on_n_loop, call_sleep_on_time, call_sleep_on_n_empty_loop_in_a_row, cur_time);
         }
       } else {
         while (is_running()) {
@@ -597,8 +590,8 @@ private:
    * @return timestamp after function was execute
    */
   template<typename InvokeFun>
-  uint64_t invoke_fun_with_stat(InvokeFun &fun, uint64_t &prev_max_time, uint64_t &empty_loops_in_a_row, uint64_t &empty_loops) {
-    uint64_t const fun_start_tsc = time::read_tsc();
+  std::chrono::microseconds invoke_fun_with_stat(InvokeFun &fun, std::chrono::microseconds &prev_max_time, uint64_t &empty_loops_in_a_row, uint64_t &empty_loops) {
+    std::chrono::microseconds const fun_start_tsc = time::get_timestamp();
     if constexpr(std::is_integral_v<decltype(fun())>) {
       if(fun()) {
           empty_loops_in_a_row = 0;
@@ -610,10 +603,8 @@ private:
       fun();
     }
 
-    uint64_t const fun_end_tsc = time::read_tsc();
-    uint64_t const tsc_diff = fun_end_tsc - fun_start_tsc;
-    if (tsc_diff > prev_max_time)
-      prev_max_time = tsc_diff;
+    std::chrono::microseconds const fun_end_tsc = time::get_timestamp();
+    prev_max_time = std::max(prev_max_time, (fun_end_tsc - fun_start_tsc));
     return fun_end_tsc;
   }
 
@@ -631,26 +622,29 @@ private:
    * @return timestamp after function was execute
    */
   template<typename InvokeLogic>
-  uint64_t invoke_logic_stat(InvokeLogic &invoke_logic,
-                             uint64_t &need_call_logic_loops,
-                             uint64_t &call_logic_fun,
-                             uint64_t cur_tsc) {
+  std::chrono::microseconds invoke_logic_stat(InvokeLogic &invoke_logic,
+                             uint64_t &call_logic_on_n_loop,
+                             std::chrono::microseconds &call_logic_on_time,
+                             std::chrono::microseconds cur_tsc) {
+
+    // this two only like placeholders
     uint64_t empty_loops_in_a_row{0};
     uint64_t empty_loops{0};
-    if (need_call_logic_loops || call_logic_fun) {
-      bool will_call{false};
-      if (call_logic_fun) {
-        will_call = call_logic_fun <= cur_tsc;
-        if (will_call) {
-            while ((call_logic_fun += _config._call_sleep->count()) < cur_tsc)
-            ;
-        }
+    // do we need check prerequisites
+    if (call_logic_on_n_loop || call_logic_on_time.count()) {
+
+      bool need_to_call{false}; // call only if need to call
+      if (call_logic_on_time.count()) {
+        need_to_call = call_logic_on_time <= cur_tsc;
+        if (need_to_call)
+            call_logic_on_time += *_config._call_sleep;
       } else {
-        will_call = need_call_logic_loops <= _actual_statistic._loops;
-        if (will_call)
-            need_call_logic_loops += *_config._call_logic_on_n_loop;
+        need_to_call = call_logic_on_n_loop <= _actual_statistic._loops;
+        if (need_to_call)
+            call_logic_on_n_loop += *_config._call_logic_on_n_loop;
       }
-      if (will_call)
+
+      if (need_to_call)
         cur_tsc = invoke_fun_with_stat(invoke_logic, _actual_statistic._max_logic_function_time, empty_loops_in_a_row, empty_loops);
     } else {
       cur_tsc = invoke_fun_with_stat(invoke_logic, _actual_statistic._max_logic_function_time, empty_loops_in_a_row, empty_loops);
@@ -666,13 +660,14 @@ private:
    *
    * @param flush_stat logic function to call
    * @param cur_tsc current tsc
+   * @return timestamp on next flush
    */
-  void need_flush_statistic(uint64_t &flush_stat, uint64_t const cur_tsc) noexcept {
-    if (flush_stat && flush_stat <= cur_tsc) {
+  std::chrono::microseconds flush_statistic(std::chrono::microseconds flush_stat, std::chrono::microseconds cur_time) noexcept {
+    if (flush_stat.count() && flush_stat <= cur_time) {
       flush_statistic();
-      while ((flush_stat += _config._flush_statistic->count()) < cur_tsc)
-        ;
+      flush_stat += *_config._flush_statistic;
     }
+    return flush_stat;
   }
 
   /**
@@ -686,31 +681,35 @@ private:
    * @param empty_loop_count how many empty cycles did
    * @param cur_tsc current tsc
    */
-  void need_sleep(uint64_t &call_sleep_on_n_loop, uint64_t &call_sleep, uint64_t &empty_loops_in_a_row, uint64_t const cur_tsc) const noexcept {
-    if (_config._sleep) {
-      bool will_sleep{false};
-      if (call_sleep_on_n_loop || call_sleep || _config._call_sleep_on_n_empty_loop_in_a_row) {
-        if (call_sleep) {
-          will_sleep = call_sleep <= cur_tsc;
-          if (will_sleep) {
-            while ((call_sleep += _config._call_sleep->count()) < cur_tsc)
-              ;
-          }
-        } else if(_config._call_sleep_on_n_empty_loop_in_a_row) {
-          will_sleep = empty_loops_in_a_row >= _config._call_sleep_on_n_empty_loop_in_a_row;
-          if(will_sleep)
-            empty_loops_in_a_row = 0;
-        } else {
-          will_sleep = call_sleep_on_n_loop <= _actual_statistic._loops;
-          if (will_sleep)
-            call_sleep_on_n_loop += *_config._call_sleep_on_n_loop;
-        }        
-      } else {
-        will_sleep = true;
+  void need_to_sleep(uint64_t &call_sleep_on_n_loop, std::chrono::microseconds &call_sleep, uint64_t &empty_loops_in_a_row, std::chrono::microseconds cur_tsc) const noexcept {
+    if (!_config._sleep)
+      return;
+    bool need_to_sleep{false};
+    if (call_sleep_on_n_loop || call_sleep.count() || _config._call_sleep_on_n_empty_loop_in_a_row) {
+      bool need_sleep_count{false};
+      bool need_on_n_empty_loop_in_a_row{false};
+      bool need_sleep_on_n_loop{false};
+      if (call_sleep.count()) {
+        need_sleep_count = call_sleep <= cur_tsc;
+        if (need_sleep_count)
+          call_sleep += *_config._call_sleep;
       }
-      if (will_sleep)
-        time::sleep(*_config._sleep);
+      if(_config._call_sleep_on_n_empty_loop_in_a_row) {
+        need_on_n_empty_loop_in_a_row = empty_loops_in_a_row >= _config._call_sleep_on_n_empty_loop_in_a_row;
+        if(need_on_n_empty_loop_in_a_row)
+          empty_loops_in_a_row = 0;
+      }
+      if(call_sleep_on_n_loop) {
+        need_sleep_on_n_loop = call_sleep_on_n_loop <= _actual_statistic._loops;
+        if (need_sleep_on_n_loop)
+          call_sleep_on_n_loop += *_config._call_sleep_on_n_loop;
+      }
+      need_to_sleep = need_sleep_count || need_on_n_empty_loop_in_a_row || need_sleep_on_n_loop;
+    } else {
+      need_to_sleep = true;
     }
+    if (need_to_sleep)
+      time::sleep(*_config._sleep);
   }
 
   /**
@@ -761,7 +760,7 @@ private:
    * @param call_sleep call sleep in time
    * @param start_tsc current tsc
    */
-  void fill_need_sleep(uint64_t &call_sleep_on_n_loop, uint64_t &call_sleep, uint64_t const start_tsc);
+  std::pair<uint64_t, std::chrono::microseconds> get_need_sleep(std::chrono::microseconds const start) const noexcept;
 
   /**
    * fill call logic delay parameters
@@ -770,7 +769,7 @@ private:
    * @param call_logic_fun call logic fun in time
    * @param start_tsc current tsc
    */
-  void fill_need_call_logic(uint64_t &call_logic_on_n_loop, uint64_t &call_logic_fun, uint64_t const start_tsc);
+  std::pair<uint64_t, std::chrono::microseconds> get_need_call_logic(std::chrono::microseconds const start) const noexcept;
 
   /**
    * flush statistic
@@ -778,7 +777,7 @@ private:
    * @param start_tsc current tsc
    * @return flush statistic timestamp
    */
-  uint64_t get_flush_stat(uint64_t const start_tsc);
+  std::chrono::microseconds get_flush_stat(std::chrono::microseconds start_tsc);
 
   std::atomic_bool _is_active{false};  ///< active flag
   std::string _name;                   ///< name of this thread
