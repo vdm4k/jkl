@@ -305,10 +305,11 @@ public:
 
         while (is_running()) {
           ++_actual_statistic._loops;
-          std::chrono::microseconds cur_time = time::get_timestamp();
-          next_flush_stat = flush_statistic(next_flush_stat, cur_time);
-          cur_time = invoke_fun_with_stat(invoke_main, _actual_statistic._max_main_function_time, call_sleep_on_n_empty_loop_in_a_row, _actual_statistic._empty_loops);
-          need_to_sleep(call_sleep_on_n_loop, call_sleep_on_time, call_sleep_on_n_empty_loop_in_a_row, cur_time);
+          std::chrono::microseconds start_loop = time::get_timestamp();
+          next_flush_stat = flush_statistic(next_flush_stat, start_loop);
+          std::chrono::microseconds end_loop = invoke_fun_with_stat(invoke_main, _actual_statistic._max_main_function_time, call_sleep_on_n_empty_loop_in_a_row, _actual_statistic._empty_loops);
+          _actual_statistic._busy_time += end_loop - start_loop;
+          need_to_sleep(call_sleep_on_n_loop, call_sleep_on_time, call_sleep_on_n_empty_loop_in_a_row, end_loop);
         }
       } else {
         while (is_running()) {
@@ -357,12 +358,13 @@ public:
           uint64_t call_sleep_on_n_empty_loop_in_a_row{0};
 
           while (is_running()) {
-            std::chrono::microseconds cur_time = time::get_timestamp();
+            std::chrono::microseconds start_loop = time::get_timestamp();
             ++_actual_statistic._loops;
-            next_flush_stat = flush_statistic(next_flush_stat, cur_time);
+            next_flush_stat = flush_statistic(next_flush_stat, start_loop);
             invoke_fun_with_stat(invoke_main, _actual_statistic._max_main_function_time, call_sleep_on_n_empty_loop_in_a_row, _actual_statistic._empty_loops);
-            cur_time = invoke_logic_stat(invoke_logic, call_logic_on_n_loop, call_logic_on_time, cur_time);
-            need_to_sleep(call_sleep_on_n_loop, call_sleep_on_time, call_sleep_on_n_empty_loop_in_a_row, cur_time);
+            std::chrono::microseconds end_loop = invoke_logic_stat(invoke_logic, call_logic_on_n_loop, call_logic_on_time, start_loop);
+            _actual_statistic._busy_time += end_loop - start_loop;
+            need_to_sleep(call_sleep_on_n_loop, call_sleep_on_time, call_sleep_on_n_empty_loop_in_a_row, end_loop);
           }
         } else {
           while (is_running()) {
@@ -422,10 +424,11 @@ public:
 
         while (is_running()) {
           ++_actual_statistic._loops;
-          std::chrono::microseconds cur_time = time::get_timestamp();
-          next_flush_stat = flush_statistic(next_flush_stat, cur_time);
-          cur_time = invoke_fun_with_stat(invoke_main, _actual_statistic._max_main_function_time, call_sleep_on_n_empty_loop_in_a_row, _actual_statistic._empty_loops);
-          need_to_sleep(call_sleep_on_n_loop, call_sleep_on_time, call_sleep_on_n_empty_loop_in_a_row, cur_time);
+          std::chrono::microseconds start_loop = time::get_timestamp();
+          next_flush_stat = flush_statistic(next_flush_stat, start_loop);
+          std::chrono::microseconds end_loop = invoke_fun_with_stat(invoke_main, _actual_statistic._max_main_function_time, call_sleep_on_n_empty_loop_in_a_row, _actual_statistic._empty_loops);
+          _actual_statistic._busy_time += end_loop - start_loop;
+          need_to_sleep(call_sleep_on_n_loop, call_sleep_on_time, call_sleep_on_n_empty_loop_in_a_row, end_loop);
         }
       } else {
         while (is_running()) {
@@ -495,12 +498,13 @@ public:
           uint64_t call_sleep_on_n_empty_loop_in_a_row{0};
 
         while (is_running()) {
-          std::chrono::microseconds cur_time = time::get_timestamp();
+          std::chrono::microseconds start_loop = time::get_timestamp();
           ++_actual_statistic._loops;
-          next_flush_stat = flush_statistic(next_flush_stat, cur_time);
+          next_flush_stat = flush_statistic(next_flush_stat, start_loop);
           invoke_fun_with_stat(invoke_main, _actual_statistic._max_main_function_time, call_sleep_on_n_empty_loop_in_a_row, _actual_statistic._empty_loops);
-          cur_time = invoke_logic_stat(invoke_logic, call_logic_on_n_loop, call_logic_on_time, cur_time);
-          need_to_sleep(call_sleep_on_n_loop, call_sleep_on_time, call_sleep_on_n_empty_loop_in_a_row, cur_time);
+          std::chrono::microseconds end_loop = invoke_logic_stat(invoke_logic, call_logic_on_n_loop, call_logic_on_time, start_loop);
+          _actual_statistic._busy_time += end_loop - start_loop;
+          need_to_sleep(call_sleep_on_n_loop, call_sleep_on_time, call_sleep_on_n_empty_loop_in_a_row, end_loop);
         }
       } else {
         while (is_running()) {
@@ -710,7 +714,7 @@ private:
     }
     if (need_to_sleep)
       time::sleep(*_config._sleep);
-  }
+   }
 
   /**
    * set running state to thread.
